@@ -2,8 +2,9 @@ import { createStartHandler, defaultStreamHandler } from '@tanstack/react-start/
 import { routePartykitRequest } from 'partyserver'
 import { env } from 'cloudflare:workers'
 
-// Re-export the Durable Object class so wrangler can bind it
+// Re-export the Durable Object classes so wrangler can bind them
 export { StatusRoom } from './party/status-room'
+export { DowntimeAgent } from './party/downtime-agent'
 
 const startHandler = createStartHandler(defaultStreamHandler)
 

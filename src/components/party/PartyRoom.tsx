@@ -13,6 +13,7 @@ export function PartyRoom() {
   const [presence, setPresence] = useState(0)
   const [myName, setMyName] = useState('Anonymous')
   const [confettiUptime, setConfettiUptime] = useState<number | undefined>()
+  const [agentThinking, setAgentThinking] = useState(false)
   const { active: confettiActive, showVideo, fire: fireConfetti, dismissVideo } = useConfetti()
 
   const socket = usePartySocket({
@@ -32,6 +33,10 @@ export function PartyRoom() {
           break
         case 'chat-message':
           setMessages((prev) => [...prev, msg.message].slice(-MAX_CLIENT_MESSAGES))
+          if (msg.message.isAgent) setAgentThinking(false)
+          break
+        case 'agent-thinking':
+          setAgentThinking(true)
           break
         case 'presence':
           setPresence(msg.count)
@@ -98,7 +103,13 @@ export function PartyRoom() {
 
         {/* Right: Chat */}
         <div className="min-h-[400px] flex-1 lg:min-h-0">
-          <ChatPanel messages={messages} presence={presence} myName={myName} onSend={handleSend} />
+          <ChatPanel
+            messages={messages}
+            presence={presence}
+            myName={myName}
+            onSend={handleSend}
+            agentThinking={agentThinking}
+          />
         </div>
       </div>
     </>

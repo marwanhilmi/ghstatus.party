@@ -6,11 +6,19 @@
   "main": "src/server-entry.ts",
   "routes": [{ "pattern": "ghstatus.party", "custom_domain": true }],
   "observability": { "enabled": true },
+  "ai": { "binding": "AI" },
+  "vars": {
+    "ENABLE_AGENT": "false",
+  },
   "durable_objects": {
     "bindings": [
       {
         "name": "StatusRoom",
         "class_name": "StatusRoom",
+      },
+      {
+        "name": "DowntimeAgent",
+        "class_name": "DowntimeAgent",
       },
     ],
   },
@@ -18,6 +26,10 @@
     {
       "tag": "v1",
       "new_sqlite_classes": ["StatusRoom"],
+    },
+    {
+      "tag": "v2",
+      "new_sqlite_classes": ["DowntimeAgent"],
     },
   ],
 }

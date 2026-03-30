@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Popover } from 'radix-ui'
-import { Smile } from 'lucide-react'
+import { Bot, Smile } from 'lucide-react'
 import type { ChatMessage } from '@/party/protocol'
 import { PresenceBadge } from './PresenceBadge'
 
@@ -73,11 +73,13 @@ export function ChatPanel({
   presence,
   myName,
   onSend,
+  agentThinking = false,
 }: {
   messages: ChatMessage[]
   presence: number
   myName: string
   onSend: (text: string) => void
+  agentThinking?: boolean
 }) {
   const [input, setInput] = useState('')
   const [emojiOpen, setEmojiOpen] = useState(false)
@@ -122,12 +124,31 @@ export function ChatPanel({
         {messages.length === 0 && (
           <p className="py-8 text-center text-xs text-[var(--sea-ink-soft)]">No messages yet. Say something!</p>
         )}
-        {messages.map((msg) => (
-          <div key={msg.id} className="py-1 [content-visibility:auto] [contain-intrinsic-size:0_28px]">
-            <span className={`text-sm font-bold ${getSenderColor(msg.sender)}`}>{msg.sender}</span>
-            <span className="text-sm text-[var(--sea-ink)]">: {msg.text}</span>
+        {messages.map((msg) =>
+          msg.isAgent ? (
+            <div key={msg.id} className="my-1 rounded-lg bg-[var(--surface-strong)] px-3 py-2">
+              <span className="inline-flex items-center gap-1 text-sm font-bold text-[#60a5fa]">
+                <Bot size={14} />
+                {msg.sender}
+              </span>
+              <span className="block text-sm text-[var(--sea-ink)]">{msg.text}</span>
+            </div>
+          ) : (
+            <div key={msg.id} className="py-1 [content-visibility:auto] [contain-intrinsic-size:0_28px]">
+              <span className={`text-sm font-bold ${getSenderColor(msg.sender)}`}>{msg.sender}</span>
+              <span className="text-sm text-[var(--sea-ink)]">: {msg.text}</span>
+            </div>
+          ),
+        )}
+        {agentThinking && (
+          <div className="my-1 rounded-lg bg-[var(--surface-strong)] px-3 py-2">
+            <span className="inline-flex items-center gap-1 text-sm font-bold text-[#60a5fa]">
+              <Bot size={14} />
+              StatusBot
+            </span>
+            <span className="block text-sm text-[var(--sea-ink-soft)] italic">thinking...</span>
           </div>
-        ))}
+        )}
         <div ref={messagesEndRef} />
       </div>
 

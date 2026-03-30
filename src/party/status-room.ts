@@ -34,14 +34,13 @@ export class StatusRoom extends Server<Env> {
     const rows = this.ctx.storage.sql
       .exec(`SELECT id, sender, text, timestamp FROM messages ORDER BY timestamp DESC LIMIT ${MAX_RECENT_MESSAGES}`)
       .toArray()
-    this.recentMessages = rows
-      .reverse()
-      .map((row) => ({
-        id: row.id as string,
-        sender: row.sender as string,
-        text: row.text as string,
-        timestamp: row.timestamp as number,
-      }))
+    this.recentMessages = rows.reverse().map((row) => ({
+      id: row.id as string,
+      sender: row.sender as string,
+      text: row.text as string,
+      timestamp: row.timestamp as number,
+      ...(row.sender === 'StatusBot' ? { isAgent: true } : {}),
+    }))
 
     // Load cached status data
     this.cachedStatusData = (await this.ctx.storage.get<StatusData>('statusData')) ?? null
@@ -99,29 +98,85 @@ export class StatusRoom extends Server<Env> {
         timestamp: Date.now(),
       }
 
-      // Persist to storage
-      this.ctx.storage.sql.exec(
-        `INSERT INTO messages (id, sender, text, timestamp) VALUES (?, ?, ?, ?)`,
-        chatMessage.id,
-        chatMessage.sender,
-        chatMessage.text,
-        chatMessage.timestamp,
-      )
-      // Trim old messages from storage
-      this.ctx.storage.sql.exec(
-        `DELETE FROM messages WHERE id NOT IN (SELECT id FROM messages ORDER BY timestamp DESC LIMIT ${MAX_RECENT_MESSAGES})`,
-      )
+      this.persistAndBroadcast(chatMessage)
 
-      // Update in-memory buffer
-      this.recentMessages.push(chatMessage)
-      if (this.recentMessages.length > MAX_RECENT_MESSAGES) {
-        this.recentMessages = this.recentMessages.slice(-MAX_RECENT_MESSAGES)
+      // Check for @statusbot mention (behind ENABLE_AGENT flag)
+      if (this.env.ENABLE_AGENT) {
+        const statusbotMatch = text.match(/^@statusbot\s+/i)
+        if (statusbotMatch) {
+          const question = text.slice(statusbotMatch[0].length).trim()
+          if (question) {
+            void this.handleAgentQuestion(question)
+          }
+        }
+      }
+    }
+  }
+
+  private async handleAgentQuestion(question: string) {
+    // Broadcast thinking indicator
+    const thinking: ServerMessage = { type: 'agent-thinking' }
+    this.broadcast(JSON.stringify(thinking))
+
+    try {
+      const id = this.env.DowntimeAgent.idFromName('main')
+      const stub = this.env.DowntimeAgent.get(id)
+      const response = await stub.fetch('https://agent/ask', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question, statusData: this.cachedStatusData }),
+      })
+
+      const body = (await response.json()) as { answer: string }
+      const answer = body.answer || 'No response from AI model.'
+
+      const agentMessage: ChatMessage = {
+        id: nanoid(),
+        sender: 'StatusBot',
+        text: answer,
+        timestamp: Date.now(),
+        isAgent: true,
       }
 
-      // Broadcast to all
-      const msg: ServerMessage = { type: 'chat-message', message: chatMessage }
-      this.broadcast(JSON.stringify(msg))
+      this.persistAndBroadcast(agentMessage)
+    } catch (err) {
+      console.error('Agent error:', err)
+
+      const errorMessage: ChatMessage = {
+        id: nanoid(),
+        sender: 'StatusBot',
+        text: "Sorry, I couldn't process that question right now. Try again in a moment!",
+        timestamp: Date.now(),
+        isAgent: true,
+      }
+
+      this.persistAndBroadcast(errorMessage)
     }
+  }
+
+  private persistAndBroadcast(chatMessage: ChatMessage) {
+    // Persist to storage
+    this.ctx.storage.sql.exec(
+      `INSERT INTO messages (id, sender, text, timestamp) VALUES (?, ?, ?, ?)`,
+      chatMessage.id,
+      chatMessage.sender,
+      chatMessage.text,
+      chatMessage.timestamp,
+    )
+    // Trim old messages from storage
+    this.ctx.storage.sql.exec(
+      `DELETE FROM messages WHERE id NOT IN (SELECT id FROM messages ORDER BY timestamp DESC LIMIT ${MAX_RECENT_MESSAGES})`,
+    )
+
+    // Update in-memory buffer
+    this.recentMessages.push(chatMessage)
+    if (this.recentMessages.length > MAX_RECENT_MESSAGES) {
+      this.recentMessages = this.recentMessages.slice(-MAX_RECENT_MESSAGES)
+    }
+
+    // Broadcast to all
+    const msg: ServerMessage = { type: 'chat-message', message: chatMessage }
+    this.broadcast(JSON.stringify(msg))
   }
 
   onClose() {
@@ -131,6 +186,7 @@ export class StatusRoom extends Server<Env> {
   async onAlarm() {
     try {
       const newData = await fetchAndComputeStatus()
+      newData.lastFetched = new Date().toISOString()
       const oldUptime = this.cachedStatusData?.uptimePercent ?? null
       this.cachedStatusData = newData
       await this.ctx.storage.put('statusData', newData)

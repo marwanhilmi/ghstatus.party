@@ -145,15 +145,17 @@ function formatDateShort(date: Date): string {
 }
 
 export async function fetchAndComputeStatus(): Promise<StatusData> {
-  const [incidentsText, windowsText] = await Promise.all([
-    fetch(INCIDENTS_URL).then((res) => res.text()),
-    fetch(WINDOWS_URL).then((res) => res.text()),
-  ])
+  const [incidentsRes, windowsRes] = await Promise.all([fetch(INCIDENTS_URL), fetch(WINDOWS_URL)])
+  const [incidentsText, windowsText] = await Promise.all([incidentsRes.text(), windowsRes.text()])
 
-  return computeStatusData(incidentsText, windowsText)
+  // Use Last-Modified header to determine when the data source was actually updated
+  const lastModifiedHeader = incidentsRes.headers.get('last-modified')
+  const dataUpdatedAt = lastModifiedHeader ? new Date(lastModifiedHeader).toISOString() : null
+
+  return computeStatusData(incidentsText, windowsText, dataUpdatedAt)
 }
 
-function computeStatusData(incidentsText: string, windowsText: string): StatusData {
+function computeStatusData(incidentsText: string, windowsText: string, dataUpdatedAt: string | null): StatusData {
   const incidents = parseJSONL(incidentsText)
   const windows = parseCSV(windowsText)
 
@@ -218,7 +220,8 @@ function computeStatusData(incidentsText: string, windowsText: string): StatusDa
   const uptime = Math.max(0, 1 - downtimeMinutes / totalMinutes)
   const uptimePercent = parseFloat((uptime * 100).toFixed(2))
 
-  const lastUpdated = incidents[0]?.updated_at ? formatDateISO(new Date(incidents[0].updated_at)) : formatDateISO(now)
+  const lastUpdated =
+    dataUpdatedAt ?? (incidents[0]?.updated_at ? formatDateISO(new Date(incidents[0].updated_at)) : formatDateISO(now))
 
   const since = rangeStart.getTime()
   const recentIncidents = incidents
@@ -239,6 +242,7 @@ function computeStatusData(incidentsText: string, windowsText: string): StatusDa
     daySeverity,
     incidentCount,
     lastUpdated,
+    lastFetched: formatDateISO(now),
     recentIncidents,
   }
 }

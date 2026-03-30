@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { StatusData } from '@/party/protocol'
 import { UptimeBars } from './UptimeBars'
 
@@ -14,17 +14,6 @@ const IMPACT_LABEL: Record<string, string> = {
   maintenance: 'Maintenance',
   minor: 'Minor',
   major: 'Major',
-}
-
-const LAST_UPDATED_FMT = new Intl.DateTimeFormat('en-US', {
-  month: 'short',
-  day: 'numeric',
-  year: 'numeric',
-  timeZone: 'UTC',
-})
-
-function formatLastUpdated(iso: string): string {
-  return LAST_UPDATED_FMT.format(new Date(iso))
 }
 
 function timeAgo(iso: string): string {
@@ -90,7 +79,17 @@ const loadingSkeleton = (
   </div>
 )
 
+function useLiveTick(intervalMs = 30_000) {
+  const [, setTick] = useState(0)
+  useEffect(() => {
+    const id = setInterval(() => setTick((t) => t + 1), intervalMs)
+    return () => clearInterval(id)
+  }, [intervalMs])
+}
+
 export function UptimeDashboard({ data }: { data: StatusData | null }) {
+  useLiveTick()
+
   if (!data) {
     return loadingSkeleton
   }
@@ -143,13 +142,17 @@ export function UptimeDashboard({ data }: { data: StatusData | null }) {
                 <circle cx="12" cy="12" r="10" />
                 <polyline points="12 6 12 12 16 14" />
               </svg>
-              Updated {timeAgo(data.lastUpdated)}
+              Data updated {timeAgo(data.lastUpdated)}
+            </span>
+            <span className="inline-flex items-center gap-2 rounded-full border border-[var(--line)] bg-[var(--chip-bg)] px-3.5 py-1.5 text-xs font-medium text-[var(--sea-ink-soft)]">
+              <span className="relative flex h-1.5 w-1.5">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[var(--lagoon)] opacity-75" />
+                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-[var(--lagoon)]" />
+              </span>
+              Checked {timeAgo(data.lastFetched)}
             </span>
             <span className="inline-flex items-center gap-2 rounded-full border border-[var(--line)] bg-[var(--chip-bg)] px-3.5 py-1.5 text-xs font-medium text-[var(--sea-ink-soft)]">
               {data.incidentCount} incidents / 90 days
-            </span>
-            <span className="inline-flex items-center gap-2 rounded-full border border-[var(--line)] bg-[var(--chip-bg)] px-3.5 py-1.5 text-xs font-medium text-[var(--sea-ink-soft)]">
-              Last updated {formatLastUpdated(data.lastUpdated)}
             </span>
             <a
               href="https://github.com/mrshu/github-statuses"

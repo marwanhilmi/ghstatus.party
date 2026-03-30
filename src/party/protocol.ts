@@ -10,7 +10,8 @@ export type StatusData = {
   uptimePercent: number
   daySeverity: number[] // 90 elements: 0=operational, 1=maintenance, 2=minor, 3=major
   incidentCount: number
-  lastUpdated: string // ISO timestamp
+  lastUpdated: string // ISO timestamp — when the upstream data source was last modified
+  lastFetched: string // ISO timestamp — when the DO last fetched upstream data
   recentIncidents: IncidentSummary[]
 }
 
@@ -19,6 +20,7 @@ export type ChatMessage = {
   sender: string
   text: string
   timestamp: number
+  isAgent?: boolean
 }
 
 // Server -> Client
@@ -34,6 +36,7 @@ export type ServerMessage =
   | { type: 'chat-message'; message: ChatMessage }
   | { type: 'presence'; count: number }
   | { type: 'confetti-trigger'; uptime: number }
+  | { type: 'agent-thinking' }
   | { type: 'message-deleted'; id: string }
   | { type: 'message-edited'; message: ChatMessage }
 
