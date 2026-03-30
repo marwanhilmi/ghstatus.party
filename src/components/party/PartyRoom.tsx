@@ -40,6 +40,12 @@ export function PartyRoom() {
           setConfettiUptime(msg.uptime)
           fireConfetti()
           break
+        case 'message-deleted':
+          setMessages((prev) => prev.filter((m) => m.id !== msg.id))
+          break
+        case 'message-edited':
+          setMessages((prev) => prev.map((m) => (m.id === msg.message.id ? msg.message : m)))
+          break
       }
     },
   })

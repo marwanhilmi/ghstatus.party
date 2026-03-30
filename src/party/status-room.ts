@@ -156,12 +156,54 @@ export class StatusRoom extends Server<Env> {
   }
 
   async onRequest(request: Request): Promise<Response> {
-    if (request.method === 'GET') {
-      return new Response(JSON.stringify(this.cachedStatusData), {
-        headers: { 'Content-Type': 'application/json' },
-      })
+    const url = new URL(request.url)
+
+    if (request.method === 'GET' && url.pathname.endsWith('/messages')) {
+      const secret = this.env.ADMIN_SECRET
+      if (!secret || request.headers.get('Authorization') !== `Bearer ${secret}`) {
+        return new Response('Unauthorized', { status: 401 })
+      }
+      return Response.json(this.recentMessages)
     }
-    return new Response('Method Not Allowed', { status: 405 })
+
+    if (request.method === 'GET') {
+      return Response.json(this.cachedStatusData)
+    }
+
+    // Admin endpoints: DELETE /messages/:id, PATCH /messages/:id
+    const messageMatch = url.pathname.match(/\/messages\/([^/]+)$/)
+    if (messageMatch && (request.method === 'DELETE' || request.method === 'PATCH')) {
+      const secret = this.env.ADMIN_SECRET
+      if (!secret || request.headers.get('Authorization') !== `Bearer ${secret}`) {
+        return new Response('Unauthorized', { status: 401 })
+      }
+
+      const messageId = messageMatch[1]
+
+      if (request.method === 'DELETE') {
+        this.ctx.storage.sql.exec(`DELETE FROM messages WHERE id = ?`, messageId)
+        this.recentMessages = this.recentMessages.filter((m) => m.id !== messageId)
+        const msg: ServerMessage = { type: 'message-deleted', id: messageId }
+        this.broadcast(JSON.stringify(msg))
+        return Response.json({ ok: true })
+      }
+
+      if (request.method === 'PATCH') {
+        const body = (await request.json()) as { text: string }
+        const text = body.text?.trim()
+        if (!text) return new Response('Missing text', { status: 400 })
+
+        this.ctx.storage.sql.exec(`UPDATE messages SET text = ? WHERE id = ?`, text, messageId)
+        const existing = this.recentMessages.find((m) => m.id === messageId)
+        if (existing) existing.text = text
+        const edited: ChatMessage = existing ?? { id: messageId, sender: '', text, timestamp: 0 }
+        const msg: ServerMessage = { type: 'message-edited', message: edited }
+        this.broadcast(JSON.stringify(msg))
+        return Response.json({ ok: true })
+      }
+    }
+
+    return new Response('Not Found', { status: 404 })
   }
 
   private getPresenceCount(): number {

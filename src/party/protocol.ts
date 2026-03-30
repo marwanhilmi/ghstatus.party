@@ -34,6 +34,8 @@ export type ServerMessage =
   | { type: 'chat-message'; message: ChatMessage }
   | { type: 'presence'; count: number }
   | { type: 'confetti-trigger'; uptime: number }
+  | { type: 'message-deleted'; id: string }
+  | { type: 'message-edited'; message: ChatMessage }
 
 // Client -> Server
 export type ClientMessage = { type: 'chat'; text: string }
