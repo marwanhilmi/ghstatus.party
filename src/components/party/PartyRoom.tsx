@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { usePartySocket } from 'partysocket/react'
 import type { ChatMessage, ClientMessage, ServerMessage, StatusData } from '@/party/protocol'
 import { UptimeDashboard } from './UptimeDashboard'
@@ -44,10 +44,13 @@ export function PartyRoom() {
     },
   })
 
-  const handleSend = (text: string) => {
-    const msg: ClientMessage = { type: 'chat', text }
-    socket.send(JSON.stringify(msg))
-  }
+  const handleSend = useCallback(
+    (text: string) => {
+      const msg: ClientMessage = { type: 'chat', text }
+      socket.send(JSON.stringify(msg))
+    },
+    [socket],
+  )
 
   const isDev = import.meta.env.DEV
 

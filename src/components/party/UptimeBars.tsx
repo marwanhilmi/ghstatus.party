@@ -15,17 +15,19 @@ const SEVERITY_LABEL: Record<number, string> = {
   3: 'Major',
 }
 
+const BAR_DATE_FMT = new Intl.DateTimeFormat('en-US', {
+  month: 'short',
+  day: 'numeric',
+  timeZone: 'UTC',
+})
+
 function formatBarDate(index: number): string {
   const now = new Date()
   const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
   const dayMs = 86400000
   const rangeStart = new Date(today.getTime() - 89 * dayMs)
   const date = new Date(rangeStart.getTime() + index * dayMs)
-  return new Intl.DateTimeFormat('en-US', {
-    month: 'short',
-    day: 'numeric',
-    timeZone: 'UTC',
-  }).format(date)
+  return BAR_DATE_FMT.format(date)
 }
 
 export function UptimeBars({ daySeverity }: { daySeverity: number[] }) {

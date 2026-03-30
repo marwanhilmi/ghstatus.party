@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import confetti from 'canvas-confetti'
 
 const PRINCE_COLORS = [
   '#9d4edd', // deep purple
@@ -21,40 +20,42 @@ export function useConfetti() {
     setActive(true)
     setShowVideo(true)
 
-    void confetti({
-      particleCount: 100,
-      spread: 70,
-      origin: { x: 0.1, y: 0.6 },
-      colors: PRINCE_COLORS,
-    })
-    void confetti({
-      particleCount: 100,
-      spread: 70,
-      origin: { x: 0.9, y: 0.6 },
-      colors: PRINCE_COLORS,
-    })
-    setTimeout(() => {
+    void import('canvas-confetti').then(({ default: confetti }) => {
       void confetti({
-        particleCount: 150,
-        spread: 120,
-        origin: { x: 0.5, y: 0.35 },
-        colors: [...PRINCE_COLORS, '#ffd700', '#ffd700'],
-      })
-    }, 300)
-    setTimeout(() => {
-      void confetti({
-        particleCount: 60,
-        spread: 90,
-        origin: { x: 0.3, y: 0.5 },
+        particleCount: 100,
+        spread: 70,
+        origin: { x: 0.1, y: 0.6 },
         colors: PRINCE_COLORS,
       })
       void confetti({
-        particleCount: 60,
-        spread: 90,
-        origin: { x: 0.7, y: 0.5 },
+        particleCount: 100,
+        spread: 70,
+        origin: { x: 0.9, y: 0.6 },
         colors: PRINCE_COLORS,
       })
-    }, 700)
+      setTimeout(() => {
+        void confetti({
+          particleCount: 150,
+          spread: 120,
+          origin: { x: 0.5, y: 0.35 },
+          colors: [...PRINCE_COLORS, '#ffd700', '#ffd700'],
+        })
+      }, 300)
+      setTimeout(() => {
+        void confetti({
+          particleCount: 60,
+          spread: 90,
+          origin: { x: 0.3, y: 0.5 },
+          colors: PRINCE_COLORS,
+        })
+        void confetti({
+          particleCount: 60,
+          spread: 90,
+          origin: { x: 0.7, y: 0.5 },
+          colors: PRINCE_COLORS,
+        })
+      }, 700)
+    })
 
     if (timeoutRef.current) clearTimeout(timeoutRef.current)
     timeoutRef.current = setTimeout(() => setActive(false), 5000)

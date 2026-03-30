@@ -1,6 +1,51 @@
 import { useEffect, useRef, useState } from 'react'
+import { Popover } from 'radix-ui'
+import { Smile } from 'lucide-react'
 import type { ChatMessage } from '@/party/protocol'
 import { PresenceBadge } from './PresenceBadge'
+
+const EMOJI_LIST = [
+  '😀',
+  '😂',
+  '🥹',
+  '😍',
+  '🤩',
+  '😎',
+  '🥳',
+  '🤔',
+  '😅',
+  '🫡',
+  '👀',
+  '🔥',
+  '💀',
+  '💯',
+  '🎉',
+  '🚀',
+  '👍',
+  '👎',
+  '❤️',
+  '💔',
+  '⚡',
+  '🐛',
+  '🤖',
+  '🫠',
+  '😤',
+  '🙏',
+  '✅',
+  '❌',
+  '⚠️',
+  '🎯',
+  '👋',
+  '🤝',
+  '💪',
+  '🧠',
+  '💡',
+  '📈',
+  '📉',
+  '🏗️',
+  '🛠️',
+  '🔧',
+]
 
 const SENDER_COLORS = [
   'text-[#c77dff]', // electric purple
@@ -35,6 +80,8 @@ export function ChatPanel({
   onSend: (text: string) => void
 }) {
   const [input, setInput] = useState('')
+  const [emojiOpen, setEmojiOpen] = useState(false)
+  const inputRef = useRef<HTMLInputElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const shouldAutoScroll = useRef(true)
@@ -76,7 +123,7 @@ export function ChatPanel({
           <p className="py-8 text-center text-xs text-[var(--sea-ink-soft)]">No messages yet. Say something!</p>
         )}
         {messages.map((msg) => (
-          <div key={msg.id} className="py-1">
+          <div key={msg.id} className="py-1 [content-visibility:auto] [contain-intrinsic-size:0_28px]">
             <span className={`text-sm font-bold ${getSenderColor(msg.sender)}`}>{msg.sender}</span>
             <span className="text-sm text-[var(--sea-ink)]">: {msg.text}</span>
           </div>
@@ -87,6 +134,7 @@ export function ChatPanel({
       {/* Input */}
       <form onSubmit={handleSubmit} className="flex gap-2 border-t border-[var(--line)] p-3">
         <input
+          ref={inputRef}
           type="text"
           value={input}
           onChange={(e) => setInput(e.target.value)}
@@ -94,6 +142,39 @@ export function ChatPanel({
           maxLength={500}
           className="min-w-0 flex-1 rounded-lg border border-[var(--line)] bg-[var(--surface-strong)] px-3 py-2 text-sm text-[var(--sea-ink)] placeholder:text-[var(--sea-ink-soft)] focus:border-[var(--lagoon)] focus:outline-none"
         />
+        <Popover.Root open={emojiOpen} onOpenChange={setEmojiOpen}>
+          <Popover.Trigger asChild>
+            <button
+              type="button"
+              className="shrink-0 rounded-lg border border-[var(--line)] bg-[var(--surface-strong)] px-2.5 py-2 text-[var(--sea-ink-soft)] transition hover:text-[var(--sea-ink)]"
+            >
+              <Smile size={18} />
+            </button>
+          </Popover.Trigger>
+          <Popover.Portal>
+            <Popover.Content
+              side="top"
+              align="end"
+              sideOffset={8}
+              className="z-50 grid w-[280px] grid-cols-8 gap-0.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] p-2 shadow-lg"
+            >
+              {EMOJI_LIST.map((emoji) => (
+                <button
+                  key={emoji}
+                  type="button"
+                  onClick={() => {
+                    setInput((prev) => prev + emoji)
+                    setEmojiOpen(false)
+                    inputRef.current?.focus()
+                  }}
+                  className="flex h-8 w-8 items-center justify-center rounded-md text-lg transition hover:bg-[var(--surface-strong)]"
+                >
+                  {emoji}
+                </button>
+              ))}
+            </Popover.Content>
+          </Popover.Portal>
+        </Popover.Root>
         <button
           type="submit"
           disabled={!input.trim()}
