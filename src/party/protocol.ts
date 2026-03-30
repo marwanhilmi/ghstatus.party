@@ -31,6 +31,7 @@ export type ServerMessage =
       data: StatusData | null
       presence: number
       recentMessages: ChatMessage[]
+      version: string
     }
   | { type: 'status-update'; data: StatusData }
   | { type: 'chat-message'; message: ChatMessage }

@@ -70,6 +70,15 @@ function CollapsibleCard({
   )
 }
 
+function FaqItem({ question, children }: { question: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <p className="m-0 mb-1 text-sm font-semibold text-[var(--sea-ink)]">{question}</p>
+      <p className="m-0 leading-relaxed">{children}</p>
+    </div>
+  )
+}
+
 const loadingSkeleton = (
   <div className="flex flex-1 items-center justify-center py-20">
     <div className="text-center">
@@ -204,6 +213,58 @@ export function UptimeDashboard({ data }: { data: StatusData | null }) {
           </div>
         </CollapsibleCard>
       )}
+
+      {/* Collapsible: FAQ / Explainer */}
+      <CollapsibleCard title="What is this?">
+        <div className="flex flex-col gap-4 text-sm text-[var(--sea-ink-soft)]">
+          <FaqItem question="What happens when uptime drops below 90%?">
+            If uptime drops below 89.99%, things get a little... festive. It's a party, after all.
+          </FaqItem>
+          <FaqItem question="What does this dashboard show?">
+            Uptime data for the GitHub platform, sourced from{' '}
+            <a href="https://github.com/mrshu/github-statuses" target="_blank" rel="noreferrer">
+              mrshu/github-statuses
+            </a>
+            , a community-maintained archive of GitHub incident data. We pull the past 90 days and compute an overall
+            uptime percentage.
+          </FaqItem>
+
+          <FaqItem question="What do the bar colors mean?">
+            <span className="inline-flex items-center gap-1.5">
+              <span className="inline-block h-2 w-2 rounded-full bg-[#c77dff]" /> Purple = fully operational
+            </span>
+            ,{' '}
+            <span className="inline-flex items-center gap-1.5">
+              <span className="inline-block h-2 w-2 rounded-full bg-[#3b82f6]" /> Blue = scheduled maintenance
+            </span>
+            ,{' '}
+            <span className="inline-flex items-center gap-1.5">
+              <span className="inline-block h-2 w-2 rounded-full bg-[#ffd700]" /> Gold = minor incident
+            </span>
+            ,{' '}
+            <span className="inline-flex items-center gap-1.5">
+              <span className="inline-block h-2 w-2 rounded-full bg-[#ff6d94]" /> Pink = major incident
+            </span>
+            .
+          </FaqItem>
+
+          <FaqItem question="Is this affiliated with GitHub?">No. We're sorry, don't take this too seriously.</FaqItem>
+
+          <FaqItem question="How often does the data refresh?">
+            The server polls the mrshu/github-statuses data roughly every 60 seconds.
+          </FaqItem>
+
+          <FaqItem question="How can I contribute or request a feature?">
+            Please open an issue on the{' '}
+            <a href="https://github.com/marwanhilmi/ghstatus.party" target="_blank" rel="noreferrer">
+              GitHub repository
+            </a>
+            . Yes GitHub.
+          </FaqItem>
+
+          <FaqItem question="What happens if GitHub is down?">🤔</FaqItem>
+        </div>
+      </CollapsibleCard>
     </div>
   )
 }

@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { cn } from '@/lib/utils'
 
 const SEVERITY_COLOR: Record<number, string> = {
@@ -38,6 +38,13 @@ export function UptimeBars({ daySeverity }: { daySeverity: number[] }) {
   } | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
 
+  const dayKeys = useMemo(() => {
+    const now = new Date()
+    const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
+    const startMs = today.getTime() - 89 * 86400000
+    return daySeverity.map((_, i) => new Date(startMs + i * 86400000).toISOString().slice(0, 10))
+  }, [daySeverity])
+
   const handleMouseEnter = (index: number, e: React.MouseEvent) => {
     const rect = containerRef.current?.getBoundingClientRect()
     if (!rect) return
@@ -66,7 +73,7 @@ export function UptimeBars({ daySeverity }: { daySeverity: number[] }) {
       <div className="flex items-end gap-[2px]" onMouseLeave={() => setTooltip(null)}>
         {daySeverity.map((severity, index) => (
           <span
-            key={index}
+            key={dayKeys[index]}
             className={cn(
               'h-8 min-w-[3px] flex-1 cursor-pointer rounded-sm transition-transform hover:scale-y-[1.3]',
               SEVERITY_COLOR[severity] ?? SEVERITY_COLOR[0],

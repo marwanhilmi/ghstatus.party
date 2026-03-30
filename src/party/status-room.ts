@@ -54,12 +54,14 @@ export class StatusRoom extends Server<Env> {
     connection.setState({ name })
 
     // Send welcome message with current state
+    const versionId = (this.env as Record<string, any>).CF_VERSION_METADATA?.id ?? 'dev'
     const welcome: ServerMessage = {
       type: 'welcome',
       name,
       data: this.cachedStatusData,
       presence: this.getPresenceCount(),
       recentMessages: this.recentMessages,
+      version: versionId,
     }
     connection.send(JSON.stringify(welcome))
 
