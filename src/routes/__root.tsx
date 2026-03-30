@@ -24,17 +24,22 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
       { name: 'theme-color', content: '#0d0221' },
       // Open Graph
       { property: 'og:type', content: 'website' },
+      { property: 'og:site_name', content: SITE_TITLE },
       { property: 'og:url', content: SITE_URL },
       { property: 'og:title', content: SITE_TITLE },
       { property: 'og:description', content: SITE_DESCRIPTION },
       { property: 'og:image', content: OG_IMAGE },
+      { property: 'og:image:alt', content: SITE_TITLE },
+      { property: 'og:image:type', content: 'image/png' },
       { property: 'og:image:width', content: '1200' },
       { property: 'og:image:height', content: '630' },
-      // Twitter
+      // Twitter / X
       { name: 'twitter:card', content: 'summary_large_image' },
+      { name: 'twitter:url', content: SITE_URL },
       { name: 'twitter:title', content: SITE_TITLE },
       { name: 'twitter:description', content: SITE_DESCRIPTION },
       { name: 'twitter:image', content: OG_IMAGE },
+      { name: 'twitter:image:alt', content: SITE_TITLE },
     ],
     links: [
       { rel: 'stylesheet', href: appCss },
