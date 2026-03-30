@@ -76,7 +76,7 @@ export class DowntimeAgent extends Agent<Env> {
 
     const { question, statusData } = (await request.json()) as AskRequest
 
-    const result = await this.env.AI.run('@cf/openai/gpt-oss-20b', {
+    const result = await (this.env.AI as any).run('@cf/openai/gpt-oss-20b', {
       messages: [
         { role: 'system', content: buildSystemPrompt(statusData) },
         { role: 'user', content: question },
