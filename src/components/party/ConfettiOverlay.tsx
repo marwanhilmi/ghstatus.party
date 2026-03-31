@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import confetti from 'canvas-confetti'
 
 const PRINCE_COLORS = [
   '#9d4edd', // deep purple
@@ -14,51 +15,60 @@ const YOUTUBE_VIDEO_ID = 'rblt2EtFfC4'
 export function useConfetti() {
   const [active, setActive] = useState(false)
   const [showVideo, setShowVideo] = useState(false)
-  const timeoutRef = useRef<ReturnType<typeof setTimeout>>(null)
+  const intervalRef = useRef<ReturnType<typeof setInterval>>(null)
+
+  const fireBurst = useCallback(async () => {
+    void confetti({
+      particleCount: 100,
+      spread: 70,
+      origin: { x: 0.1, y: 0.6 },
+      colors: PRINCE_COLORS,
+    })
+    void confetti({
+      particleCount: 100,
+      spread: 70,
+      origin: { x: 0.9, y: 0.6 },
+      colors: PRINCE_COLORS,
+    })
+    setTimeout(() => {
+      void confetti({
+        particleCount: 150,
+        spread: 120,
+        origin: { x: 0.5, y: 0.35 },
+        colors: [...PRINCE_COLORS, '#ffd700', '#ffd700'],
+      })
+    }, 300)
+    setTimeout(() => {
+      void confetti({
+        particleCount: 60,
+        spread: 90,
+        origin: { x: 0.3, y: 0.5 },
+        colors: PRINCE_COLORS,
+      })
+      void confetti({
+        particleCount: 60,
+        spread: 90,
+        origin: { x: 0.7, y: 0.5 },
+        colors: PRINCE_COLORS,
+      })
+    }, 700)
+  }, [])
 
   const fire = useCallback(() => {
     setActive(true)
     setShowVideo(true)
 
-    void import('canvas-confetti').then(({ default: confetti }) => {
-      void confetti({
-        particleCount: 100,
-        spread: 70,
-        origin: { x: 0.1, y: 0.6 },
-        colors: PRINCE_COLORS,
-      })
-      void confetti({
-        particleCount: 100,
-        spread: 70,
-        origin: { x: 0.9, y: 0.6 },
-        colors: PRINCE_COLORS,
-      })
-      setTimeout(() => {
-        void confetti({
-          particleCount: 150,
-          spread: 120,
-          origin: { x: 0.5, y: 0.35 },
-          colors: [...PRINCE_COLORS, '#ffd700', '#ffd700'],
-        })
-      }, 300)
-      setTimeout(() => {
-        void confetti({
-          particleCount: 60,
-          spread: 90,
-          origin: { x: 0.3, y: 0.5 },
-          colors: PRINCE_COLORS,
-        })
-        void confetti({
-          particleCount: 60,
-          spread: 90,
-          origin: { x: 0.7, y: 0.5 },
-          colors: PRINCE_COLORS,
-        })
-      }, 700)
-    })
+    void fireBurst()
+    if (intervalRef.current) clearInterval(intervalRef.current)
+    intervalRef.current = setInterval(() => void fireBurst(), 2500)
+  }, [fireBurst])
 
-    if (timeoutRef.current) clearTimeout(timeoutRef.current)
-    timeoutRef.current = setTimeout(() => setActive(false), 5000)
+  const stop = useCallback(() => {
+    setActive(false)
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current)
+      intervalRef.current = null
+    }
   }, [])
 
   const dismissVideo = useCallback(() => {
@@ -67,11 +77,11 @@ export function useConfetti() {
 
   useEffect(() => {
     return () => {
-      if (timeoutRef.current) clearTimeout(timeoutRef.current)
+      if (intervalRef.current) clearInterval(intervalRef.current)
     }
   }, [])
 
-  return { active, showVideo, fire, dismissVideo }
+  return { active, showVideo, fire, stop, dismissVideo }
 }
 
 /** Floating confetti banner only — no modal */

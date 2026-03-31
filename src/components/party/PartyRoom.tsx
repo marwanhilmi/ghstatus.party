@@ -92,45 +92,49 @@ export function PartyRoom() {
   return (
     <>
       <ConfettiBanner active={confettiActive} uptime={state.confettiUptime} />
-      {state.version && <VersionIndicator version={state.version} />}
-      <div className="flex h-screen flex-col gap-4 p-4 lg:flex-row">
-        {/* Left: Uptime Dashboard + Video */}
-        <div className="flex-[2] overflow-y-auto">
-          <UptimeDashboard data={state.statusData} />
+      <div className="flex h-[100dvh] flex-col p-4">
+        <div className="flex min-h-0 flex-1 flex-col gap-4 lg:flex-row">
+          {/* Left: Uptime Dashboard + Video */}
+          <div className="flex-[2] overflow-y-auto">
+            <UptimeDashboard data={state.statusData} />
 
-          {/* Video card — inline below the hero */}
-          {showVideo && (
-            <div className="mt-4">
-              <VideoCard onDismiss={dismissVideo} />
-            </div>
-          )}
+            {/* Video card — inline below the hero */}
+            {showVideo && (
+              <div className="mt-4">
+                <VideoCard onDismiss={dismissVideo} />
+              </div>
+            )}
 
-          {isDev && (
-            <div className="mt-4 island-shell rounded-2xl p-4">
-              <p className="m-0 mb-2 text-xs font-semibold uppercase tracking-wider text-[var(--sea-ink-soft)]">
-                Dev Tools
-              </p>
-              <button
-                type="button"
-                onClick={handleTestConfetti}
-                className="rounded-lg bg-[#9d4edd] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#7b2cbf]"
-              >
-                Test 89.99% Confetti
-              </button>
-            </div>
-          )}
+            {isDev && (
+              <div className="mt-4 island-shell rounded-2xl p-4">
+                <p className="m-0 mb-2 text-xs font-semibold uppercase tracking-wider text-[var(--sea-ink-soft)]">
+                  Dev Tools
+                </p>
+                <button
+                  type="button"
+                  onClick={handleTestConfetti}
+                  className="rounded-lg bg-[#9d4edd] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#7b2cbf]"
+                >
+                  Test 89.99% Confetti
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Right: Chat */}
+          <div className="min-h-[400px] flex-1 lg:min-h-0">
+            <ChatPanel
+              messages={state.messages}
+              presence={state.presence}
+              myName={state.myName}
+              onSend={handleSend}
+              agentThinking={state.agentThinking}
+            />
+          </div>
         </div>
 
-        {/* Right: Chat */}
-        <div className="min-h-[400px] flex-1 lg:min-h-0">
-          <ChatPanel
-            messages={state.messages}
-            presence={state.presence}
-            myName={state.myName}
-            onSend={handleSend}
-            agentThinking={state.agentThinking}
-          />
-        </div>
+        {/* Footer */}
+        {state.version && <VersionIndicator version={state.version} />}
       </div>
     </>
   )
