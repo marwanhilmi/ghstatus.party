@@ -18,7 +18,7 @@ import type {
 
 const CONFETTI_THRESHOLD = 89.99
 const FETCH_INTERVAL_MS = 5 * 60 * 1000 // 5 minutes
-const MAX_RECENT_MESSAGES = 50
+const MAX_RECENT_MESSAGES = 100
 const MAX_BET_ACTIVITY = 50
 const STARTING_BALANCE = 1000
 const MIN_BET = 10
