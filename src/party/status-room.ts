@@ -844,6 +844,7 @@ export class StatusRoom extends Server<Env> {
   }
 
   private getReactionsForMessages(messageIds: string[]): Map<string, ReactionSummary[]> {
+    if (messageIds.length === 0) return new Map()
     const placeholders = messageIds.map(() => '?').join(',')
     const rows = this.ctx.storage.sql
       .exec(`SELECT message_id, emoji, name FROM reactions WHERE message_id IN (${placeholders})`, ...messageIds)
