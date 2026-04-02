@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { StatusData } from '@/party/protocol'
+import type { StatusData, LiveStatus } from '@/party/protocol'
 import { UptimeBars } from './UptimeBars'
 
 const IMPACT_BADGE: Record<string, string> = {
@@ -96,6 +96,150 @@ function useLiveTick(intervalMs = 30_000) {
   }, [intervalMs])
 }
 
+const INDICATOR_CONFIG = {
+  none: {
+    label: 'All Systems Operational',
+    color: 'text-emerald-400',
+    bg: 'bg-emerald-400',
+    border: 'border-emerald-400/30',
+    glow: 'from-emerald-500/15',
+  },
+  minor: {
+    label: 'Minor Issues',
+    color: 'text-[#ffd700]',
+    bg: 'bg-[#ffd700]',
+    border: 'border-[#ffd700]/30',
+    glow: 'from-[#ffd700]/15',
+  },
+  major: {
+    label: 'Major Outage',
+    color: 'text-[#ff6d94]',
+    bg: 'bg-[#ff6d94]',
+    border: 'border-[#ff6d94]/30',
+    glow: 'from-[#ff6d94]/15',
+  },
+  critical: {
+    label: 'Critical Outage',
+    color: 'text-red-400',
+    bg: 'bg-red-400',
+    border: 'border-red-400/30',
+    glow: 'from-red-500/15',
+  },
+} as const
+
+const COMPONENT_STATUS_DOT: Record<string, string> = {
+  operational: 'bg-emerald-400',
+  degraded_performance: 'bg-[#ffd700]',
+  partial_outage: 'bg-[#ff6d94]',
+  major_outage: 'bg-red-400',
+}
+
+const COMPONENT_STATUS_LABEL: Record<string, string> = {
+  operational: 'Operational',
+  degraded_performance: 'Degraded',
+  partial_outage: 'Partial Outage',
+  major_outage: 'Major Outage',
+}
+
+function LiveStatusCard({ liveStatus }: { liveStatus: LiveStatus }) {
+  const config = INDICATOR_CONFIG[liveStatus.indicator]
+  const isDown = liveStatus.indicator !== 'none'
+  const [open, setOpen] = useState(isDown)
+
+  const title = (
+    <div className="flex items-center gap-3">
+      <span className="relative flex h-2.5 w-2.5">
+        <span
+          className={`absolute inline-flex h-full w-full rounded-full ${config.bg} ${isDown ? 'animate-ping' : ''} opacity-75`}
+        />
+        <span className={`relative inline-flex h-2.5 w-2.5 rounded-full ${config.bg}`} />
+      </span>
+      <span className={`text-sm font-bold ${config.color}`}>{config.label}</span>
+      {liveStatus.activeIncidents.length > 0 && (
+        <span className="text-xs text-[var(--sea-ink-soft)]">
+          — {liveStatus.activeIncidents.length} active{' '}
+          {liveStatus.activeIncidents.length === 1 ? 'incident' : 'incidents'}
+        </span>
+      )}
+    </div>
+  )
+
+  return (
+    <div className={`island-shell overflow-hidden rounded-2xl border ${config.border}`}>
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="flex w-full items-center justify-between bg-transparent px-5 py-3.5 text-left"
+      >
+        {title}
+        <svg
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className={`text-[var(--sea-ink-soft)] transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+        >
+          <polyline points="6 9 12 15 18 9" />
+        </svg>
+      </button>
+      {open && (
+        <div className="border-t border-[var(--line)] px-5 pb-5 pt-4">
+          {/* Active incidents */}
+          {liveStatus.activeIncidents.length > 0 && (
+            <div className="mb-4 flex flex-col gap-2">
+              {liveStatus.activeIncidents.map((inc) => (
+                <a
+                  key={inc.id}
+                  href={inc.shortlink}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-center justify-between gap-3 rounded-lg border border-[var(--line)] bg-[rgba(30,10,60,0.3)] p-3 no-underline transition-opacity hover:opacity-80"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="m-0 text-sm font-medium text-[var(--sea-ink)]">{inc.name}</p>
+                    <p className="m-0 mt-0.5 text-xs capitalize text-[var(--sea-ink-soft)]">
+                      {inc.status.replace('_', ' ')}
+                    </p>
+                  </div>
+                  <span
+                    className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${IMPACT_BADGE[inc.impact] ?? IMPACT_BADGE.none}`}
+                  >
+                    {IMPACT_LABEL[inc.impact] ?? inc.impact}
+                  </span>
+                </a>
+              ))}
+            </div>
+          )}
+
+          {/* Component grid */}
+          <h3 className="m-0 mb-3 text-xs font-bold uppercase tracking-[0.15em] text-[var(--sea-ink-soft)]">
+            Components
+          </h3>
+          <div className="grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-3">
+            {liveStatus.components.map((comp) => (
+              <div key={comp.name} className="flex items-center gap-2">
+                <span
+                  className={`h-2 w-2 shrink-0 rounded-full ${COMPONENT_STATUS_DOT[comp.status] ?? COMPONENT_STATUS_DOT.operational}`}
+                />
+                <span className="truncate text-xs text-[var(--sea-ink)]">{comp.name}</span>
+                {comp.status !== 'operational' && (
+                  <span className="ml-auto shrink-0 text-[10px] font-medium text-[var(--sea-ink-soft)]">
+                    {COMPONENT_STATUS_LABEL[comp.status]}
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function UptimeDashboard({ data }: { data: StatusData | null }) {
   useLiveTick()
 
@@ -177,6 +321,9 @@ export function UptimeDashboard({ data }: { data: StatusData | null }) {
           </div>
         </div>
       </div>
+
+      {/* Live status */}
+      {data.liveStatus && <LiveStatusCard liveStatus={data.liveStatus} />}
 
       {/* Collapsible: Uptime History */}
       <CollapsibleCard title="90-Day History" defaultOpen>

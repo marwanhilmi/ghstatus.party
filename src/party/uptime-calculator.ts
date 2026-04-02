@@ -1,7 +1,8 @@
-import type { StatusData } from './protocol'
+import type { StatusData, LiveStatus, ComponentStatus, ActiveIncident } from './protocol'
 
 const INCIDENTS_URL = 'https://mrshu.github.io/github-statuses/parsed/incidents.jsonl'
 const WINDOWS_URL = 'https://mrshu.github.io/github-statuses/parsed/downtime_windows.csv'
+const GITHUB_STATUS_URL = 'https://www.githubstatus.com/api/v2/summary.json'
 
 const impactRank: Record<string, number> = {
   none: 0,
@@ -144,18 +145,77 @@ function formatDateShort(date: Date): string {
   }).format(date)
 }
 
+// Ignored component (just a link, not a real service)
+const IGNORED_COMPONENTS = new Set(['Visit www.githubstatus.com for more information'])
+
+async function fetchLiveStatus(): Promise<LiveStatus | null> {
+  try {
+    const res = await fetch(GITHUB_STATUS_URL)
+    if (!res.ok) return null
+    const data = (await res.json()) as {
+      status: { indicator: string; description: string }
+      components: { name: string; status: string; group_id: string | null }[]
+      incidents: {
+        id: string
+        name: string
+        impact: string
+        status: string
+        shortlink: string
+        created_at: string
+        updated_at: string
+      }[]
+    }
+
+    const components: ComponentStatus[] = data.components
+      .filter((c) => !IGNORED_COMPONENTS.has(c.name) && !c.group_id)
+      .map((c) => ({
+        name: c.name,
+        status: c.status as ComponentStatus['status'],
+      }))
+
+    const activeIncidents: ActiveIncident[] = data.incidents.map((inc) => ({
+      id: inc.id,
+      name: inc.name,
+      impact: inc.impact as ActiveIncident['impact'],
+      status: inc.status,
+      shortlink: inc.shortlink,
+      createdAt: inc.created_at,
+      updatedAt: inc.updated_at,
+    }))
+
+    return {
+      indicator: data.status.indicator as LiveStatus['indicator'],
+      description: data.status.description,
+      components,
+      activeIncidents,
+    }
+  } catch (err) {
+    console.error('Failed to fetch live GitHub status:', err)
+    return null
+  }
+}
+
 export async function fetchAndComputeStatus(): Promise<StatusData> {
-  const [incidentsRes, windowsRes] = await Promise.all([fetch(INCIDENTS_URL), fetch(WINDOWS_URL)])
+  const [incidentsRes, windowsRes, liveStatus] = await Promise.all([
+    fetch(INCIDENTS_URL),
+    fetch(WINDOWS_URL),
+    fetchLiveStatus(),
+  ])
   const [incidentsText, windowsText] = await Promise.all([incidentsRes.text(), windowsRes.text()])
 
   // Use Last-Modified header to determine when the data source was actually updated
   const lastModifiedHeader = incidentsRes.headers.get('last-modified')
   const dataUpdatedAt = lastModifiedHeader ? new Date(lastModifiedHeader).toISOString() : null
 
-  return computeStatusData(incidentsText, windowsText, dataUpdatedAt)
+  return computeStatusData(incidentsText, windowsText, dataUpdatedAt, liveStatus)
 }
 
-function computeStatusData(incidentsText: string, windowsText: string, dataUpdatedAt: string | null): StatusData {
+function computeStatusData(
+  incidentsText: string,
+  windowsText: string,
+  dataUpdatedAt: string | null,
+  liveStatus: LiveStatus | null,
+): StatusData {
   const incidents = parseJSONL(incidentsText)
   const windows = parseCSV(windowsText)
 
@@ -244,5 +304,6 @@ function computeStatusData(incidentsText: string, windowsText: string, dataUpdat
     lastUpdated,
     lastFetched: formatDateISO(now),
     recentIncidents,
+    liveStatus,
   }
 }

@@ -6,6 +6,28 @@ export type IncidentSummary = {
   date: string
 }
 
+export type ComponentStatus = {
+  name: string
+  status: 'operational' | 'degraded_performance' | 'partial_outage' | 'major_outage'
+}
+
+export type ActiveIncident = {
+  id: string
+  name: string
+  impact: 'none' | 'minor' | 'major' | 'critical'
+  status: string // investigating, identified, monitoring, resolved
+  shortlink: string
+  createdAt: string
+  updatedAt: string
+}
+
+export type LiveStatus = {
+  indicator: 'none' | 'minor' | 'major' | 'critical'
+  description: string
+  components: ComponentStatus[]
+  activeIncidents: ActiveIncident[]
+}
+
 export type StatusData = {
   uptimePercent: number
   daySeverity: number[] // 90 elements: 0=operational, 1=maintenance, 2=minor, 3=major
@@ -13,6 +35,7 @@ export type StatusData = {
   lastUpdated: string // ISO timestamp — when the upstream data source was last modified
   lastFetched: string // ISO timestamp — when the DO last fetched upstream data
   recentIncidents: IncidentSummary[]
+  liveStatus: LiveStatus | null
 }
 
 export type ChatMessage = {
