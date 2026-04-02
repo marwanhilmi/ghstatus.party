@@ -58,32 +58,31 @@ export function MarketCard({
 
       {/* Actions row */}
       <div className="flex items-center justify-between gap-2">
-        {isOpen ? (
+        {isOpen && !position ? (
           <div className="flex gap-2">
             <BetButton side="yes" label={`Yes ${yesPct}%`} market={market} balance={balance} onPlaceBet={onPlaceBet} />
             <BetButton side="no" label={`No ${noPct}%`} market={market} balance={balance} onPlaceBet={onPlaceBet} />
           </div>
+        ) : isOpen && position ? (
+          <div className="flex items-center gap-2 rounded-lg border border-[var(--line)] bg-[rgba(157,78,221,0.08)] px-3 py-1.5 text-xs text-[var(--sea-ink-soft)]">
+            Your bet: <span className="font-semibold text-[#ffd700]">{position.amount}</span> on{' '}
+            <span className="font-semibold">{position.side.toUpperCase()}</span>
+          </div>
         ) : (
-          <span className="text-xs font-semibold text-[#ffd700]">
-            Resolved: {market.status === 'resolved_yes' ? 'YES' : 'NO'}
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold text-[#ffd700]">
+              Resolved: {market.status === 'resolved_yes' ? 'YES' : 'NO'}
+            </span>
+            {position && position.payout != null && position.payout > 0 && (
+              <span className="text-xs font-semibold text-[#ffd700]">— Won {position.payout}!</span>
+            )}
+          </div>
         )}
 
         <span className="text-xs text-[var(--sea-ink-soft)]">
           {isOpen ? formatTimeLeft(market.resolveAt) : `${totalPool} pool`}
         </span>
       </div>
-
-      {/* User's position */}
-      {position && (
-        <div className="mt-2 rounded-lg border border-[var(--line)] bg-[rgba(157,78,221,0.08)] px-3 py-1.5 text-xs text-[var(--sea-ink-soft)]">
-          Your bet: <span className="font-semibold text-[#ffd700]">{position.amount}</span> on{' '}
-          <span className="font-semibold">{position.side.toUpperCase()}</span>
-          {position.payout != null && position.payout > 0 && (
-            <span className="ml-2 text-[#ffd700]">Won {position.payout}!</span>
-          )}
-        </div>
-      )}
     </div>
   )
 }

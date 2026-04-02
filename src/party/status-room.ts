@@ -482,23 +482,6 @@ export class StatusRoom extends Server<Env> {
     // Broadcast updated market to everyone
     const marketUpdate: ServerMessage = { type: 'market-update', market: updatedMarket }
     this.broadcast(JSON.stringify(marketUpdate))
-
-    // Announce big bets in chat (100+ coins)
-    if (amount >= 100) {
-      const name = connection.state?.name ?? 'Anonymous'
-      const sideLabel = side.toUpperCase()
-      const isAllIn = newBalance === 0
-      const text = isAllIn
-        ? `${name} went ALL IN (${amount}) on ${sideLabel} — "${updatedMarket.question}"`
-        : `${name} bet ${amount} on ${sideLabel} — "${updatedMarket.question}"`
-      this.persistAndBroadcast({
-        id: nanoid(),
-        sender: 'StatusBot',
-        text,
-        timestamp: Date.now(),
-        isAgent: true,
-      })
-    }
   }
 
   private sendBettingSync(connection: Connection<ConnectionState>) {

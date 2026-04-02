@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { StatusData, LiveStatus } from '@/party/protocol'
+import type { StatusData, LiveStatus, IncidentSummary } from '@/party/protocol'
 import { UptimeBars } from './UptimeBars'
 
 const IMPACT_BADGE: Record<string, string> = {
@@ -33,7 +33,7 @@ function splitUptime(percent: number): { whole: string; decimal: string } {
   return { whole, decimal }
 }
 
-function CollapsibleCard({
+export function CollapsibleCard({
   title,
   defaultOpen = false,
   children,
@@ -70,7 +70,7 @@ function CollapsibleCard({
   )
 }
 
-function FaqItem({ question, children }: { question: string; children: React.ReactNode }) {
+export function FaqItem({ question, children }: { question: string; children: React.ReactNode }) {
   return (
     <div>
       <p className="m-0 mb-1 text-sm font-semibold text-[var(--sea-ink)]">{question}</p>
@@ -139,6 +139,77 @@ const COMPONENT_STATUS_LABEL: Record<string, string> = {
   degraded_performance: 'Degraded',
   partial_outage: 'Partial Outage',
   major_outage: 'Major Outage',
+}
+
+function HistoryCard({ daySeverity, recentIncidents }: { daySeverity: number[]; recentIncidents: IncidentSummary[] }) {
+  const [open, setOpen] = useState(false)
+  const hasIncidents = recentIncidents.length > 0
+
+  return (
+    <div className="island-shell overflow-hidden rounded-2xl">
+      {/* Always-visible: bar chart */}
+      <div className="px-5 pt-4 pb-3">
+        <UptimeBars daySeverity={daySeverity} />
+      </div>
+
+      {/* Collapsible: recent incidents */}
+      {hasIncidents && (
+        <>
+          <button
+            type="button"
+            onClick={() => setOpen(!open)}
+            className="flex w-full items-center justify-between border-t border-[var(--line)] bg-transparent px-5 py-3 text-left"
+          >
+            <span className="text-sm font-semibold text-[var(--sea-ink)]">
+              Recent Incidents ({recentIncidents.length})
+            </span>
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className={`text-[var(--sea-ink-soft)] transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+            >
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
+          </button>
+          {open && (
+            <div className="border-t border-[var(--line)] px-5 pb-5 pt-4">
+              <div className="flex flex-col gap-2">
+                {recentIncidents.slice(0, 8).map((incident) => (
+                  <div
+                    key={incident.id}
+                    className="flex items-start justify-between gap-3 rounded-lg border border-[var(--line)] bg-[rgba(30,10,60,0.3)] p-3"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <a
+                        href={incident.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-sm font-medium text-[var(--sea-ink)] no-underline hover:underline"
+                      >
+                        {incident.title}
+                      </a>
+                      <p className="m-0 mt-0.5 text-xs text-[var(--sea-ink-soft)]">{incident.date}</p>
+                    </div>
+                    <span
+                      className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${IMPACT_BADGE[incident.impact] ?? IMPACT_BADGE.none}`}
+                    >
+                      {IMPACT_LABEL[incident.impact] ?? 'Operational'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  )
 }
 
 function LiveStatusCard({ liveStatus }: { liveStatus: LiveStatus }) {
@@ -220,19 +291,21 @@ function LiveStatusCard({ liveStatus }: { liveStatus: LiveStatus }) {
             Components
           </h3>
           <div className="grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-3">
-            {liveStatus.components.map((comp) => (
-              <div key={comp.name} className="flex items-center gap-2">
-                <span
-                  className={`h-2 w-2 shrink-0 rounded-full ${COMPONENT_STATUS_DOT[comp.status] ?? COMPONENT_STATUS_DOT.operational}`}
-                />
-                <span className="truncate text-xs text-[var(--sea-ink)]">{comp.name}</span>
-                {comp.status !== 'operational' && (
-                  <span className="ml-auto shrink-0 text-[10px] font-medium text-[var(--sea-ink-soft)]">
-                    {COMPONENT_STATUS_LABEL[comp.status]}
-                  </span>
-                )}
-              </div>
-            ))}
+            {liveStatus.components
+              .filter((comp) => !comp.name.toLowerCase().includes('copilot'))
+              .map((comp) => (
+                <div key={comp.name} className="flex items-center gap-2">
+                  <span
+                    className={`h-2 w-2 shrink-0 rounded-full ${COMPONENT_STATUS_DOT[comp.status] ?? COMPONENT_STATUS_DOT.operational}`}
+                  />
+                  <span className="truncate text-xs text-[var(--sea-ink)]">{comp.name}</span>
+                  {comp.status !== 'operational' && (
+                    <span className="ml-auto shrink-0 text-[10px] font-medium text-[var(--sea-ink-soft)]">
+                      {COMPONENT_STATUS_LABEL[comp.status]}
+                    </span>
+                  )}
+                </div>
+              ))}
           </div>
         </div>
       )}
@@ -275,9 +348,6 @@ export function UptimeDashboard({ data }: { data: StatusData | null }) {
             <span className="text-4xl font-bold text-[var(--sea-ink-soft)] sm:text-5xl">.{decimal}</span>
             <span className="ml-2 text-xl font-semibold text-[var(--sea-ink-soft)]">%</span>
           </div>
-
-          {/* Subtitle */}
-          <p className="m-0 mb-6 text-base text-[var(--sea-ink-soft)]">90-day uptime</p>
 
           {/* Meta chips */}
           <div className="flex flex-wrap gap-3">
@@ -323,95 +393,16 @@ export function UptimeDashboard({ data }: { data: StatusData | null }) {
       </div>
 
       {/* Live status */}
-      {data.liveStatus && <LiveStatusCard liveStatus={data.liveStatus} />}
-
-      {/* Collapsible: Uptime History */}
-      <CollapsibleCard title="90-Day History" defaultOpen>
-        <UptimeBars daySeverity={data.daySeverity} />
-      </CollapsibleCard>
-
-      {/* Collapsible: Recent Incidents */}
-      {data.recentIncidents.length > 0 && (
-        <CollapsibleCard title={`Recent Incidents (${data.recentIncidents.length})`}>
-          <div className="flex flex-col gap-2">
-            {data.recentIncidents.slice(0, 8).map((incident) => (
-              <div
-                key={incident.id}
-                className="flex items-start justify-between gap-3 rounded-lg border border-[var(--line)] bg-[rgba(30,10,60,0.3)] p-3"
-              >
-                <div className="min-w-0 flex-1">
-                  <a
-                    href={incident.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-sm font-medium text-[var(--sea-ink)] no-underline hover:underline"
-                  >
-                    {incident.title}
-                  </a>
-                  <p className="m-0 mt-0.5 text-xs text-[var(--sea-ink-soft)]">{incident.date}</p>
-                </div>
-                <span
-                  className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${IMPACT_BADGE[incident.impact] ?? IMPACT_BADGE.none}`}
-                >
-                  {IMPACT_LABEL[incident.impact] ?? 'Operational'}
-                </span>
-              </div>
-            ))}
-          </div>
-        </CollapsibleCard>
+      {data.liveStatus && (
+        <>
+          <h3 className="m-0 mt-2 text-xs font-bold uppercase tracking-[0.2em] text-emerald-400">Live Status</h3>
+          <LiveStatusCard liveStatus={data.liveStatus} />
+        </>
       )}
 
-      {/* Collapsible: FAQ / Explainer */}
-      <CollapsibleCard title="What is this?">
-        <div className="flex flex-col gap-4 text-sm text-[var(--sea-ink-soft)]">
-          <FaqItem question="What happens when uptime drops below 90%?">
-            If uptime drops below 89.99%, things get a little... festive. It's a party, after all.
-          </FaqItem>
-          <FaqItem question="What does this dashboard show?">
-            Uptime data for the GitHub platform, sourced from{' '}
-            <a href="https://github.com/mrshu/github-statuses" target="_blank" rel="noreferrer">
-              mrshu/github-statuses
-            </a>
-            , a community-maintained archive of GitHub incident data. We pull the past 90 days and compute an overall
-            uptime percentage.
-          </FaqItem>
-
-          <FaqItem question="What do the bar colors mean?">
-            <span className="inline-flex items-center gap-1.5">
-              <span className="inline-block h-2 w-2 rounded-full bg-[#c77dff]" /> Purple = fully operational
-            </span>
-            ,{' '}
-            <span className="inline-flex items-center gap-1.5">
-              <span className="inline-block h-2 w-2 rounded-full bg-[#3b82f6]" /> Blue = scheduled maintenance
-            </span>
-            ,{' '}
-            <span className="inline-flex items-center gap-1.5">
-              <span className="inline-block h-2 w-2 rounded-full bg-[#ffd700]" /> Gold = minor incident
-            </span>
-            ,{' '}
-            <span className="inline-flex items-center gap-1.5">
-              <span className="inline-block h-2 w-2 rounded-full bg-[#ff6d94]" /> Pink = major incident
-            </span>
-            .
-          </FaqItem>
-
-          <FaqItem question="Is this affiliated with GitHub?">No. We're sorry, don't take this too seriously.</FaqItem>
-
-          <FaqItem question="How often does the data refresh?">
-            The server polls the mrshu/github-statuses data roughly every 60 seconds.
-          </FaqItem>
-
-          <FaqItem question="How can I contribute or request a feature?">
-            Please open an issue on the{' '}
-            <a href="https://github.com/marwanhilmi/ghstatus.party" target="_blank" rel="noreferrer">
-              GitHub repository
-            </a>
-            . Yes GitHub.
-          </FaqItem>
-
-          <FaqItem question="What happens if GitHub is down?">🤔</FaqItem>
-        </div>
-      </CollapsibleCard>
+      {/* 90-Day History + Recent Incidents */}
+      <h3 className="m-0 mt-2 text-xs font-bold uppercase tracking-[0.2em] text-[#c77dff]">90-Day History</h3>
+      <HistoryCard daySeverity={data.daySeverity} recentIncidents={data.recentIncidents} />
     </div>
   )
 }
