@@ -75,6 +75,9 @@ export function useConfetti() {
     // Ignore if already running (e.g. PartySocket reconnect on tab focus)
     if (activeRef.current) return
 
+    // Skip if the user has already seen this party
+    if (typeof window !== 'undefined' && localStorage.getItem('confetti-seen') === 'true') return
+
     // Clear any existing timers before starting fresh
     if (intervalRef.current) clearInterval(intervalRef.current)
     if (timeoutRef.current) clearTimeout(timeoutRef.current)
@@ -82,6 +85,8 @@ export function useConfetti() {
     activeRef.current = true
     setActive(true)
     setShowVideo(true)
+
+    if (typeof window !== 'undefined') localStorage.setItem('confetti-seen', 'true')
 
     void fireBurst()
     intervalRef.current = setInterval(() => void fireBurst(), 2500)
