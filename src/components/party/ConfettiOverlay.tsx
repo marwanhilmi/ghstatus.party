@@ -12,10 +12,14 @@ const PRINCE_COLORS = [
 
 const YOUTUBE_VIDEO_ID = 'rblt2EtFfC4'
 
+const CONFETTI_DURATION_MS = 60_000 // ~1 minute
+
 export function useConfetti() {
   const [active, setActive] = useState(false)
   const [showVideo, setShowVideo] = useState(false)
   const intervalRef = useRef<ReturnType<typeof setInterval>>(null)
+  const timeoutRef = useRef<ReturnType<typeof setTimeout>>(null)
+  const activeRef = useRef(false)
 
   const fireBurst = useCallback(async () => {
     void confetti({
@@ -54,22 +58,37 @@ export function useConfetti() {
     }, 700)
   }, [])
 
-  const fire = useCallback(() => {
-    setActive(true)
-    setShowVideo(true)
-
-    void fireBurst()
-    if (intervalRef.current) clearInterval(intervalRef.current)
-    intervalRef.current = setInterval(() => void fireBurst(), 2500)
-  }, [fireBurst])
-
   const stop = useCallback(() => {
+    activeRef.current = false
     setActive(false)
     if (intervalRef.current) {
       clearInterval(intervalRef.current)
       intervalRef.current = null
     }
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current)
+      timeoutRef.current = null
+    }
   }, [])
+
+  const fire = useCallback(() => {
+    // Ignore if already running (e.g. PartySocket reconnect on tab focus)
+    if (activeRef.current) return
+
+    // Clear any existing timers before starting fresh
+    if (intervalRef.current) clearInterval(intervalRef.current)
+    if (timeoutRef.current) clearTimeout(timeoutRef.current)
+
+    activeRef.current = true
+    setActive(true)
+    setShowVideo(true)
+
+    void fireBurst()
+    intervalRef.current = setInterval(() => void fireBurst(), 2500)
+
+    // Auto-stop after ~1 minute
+    timeoutRef.current = setTimeout(() => stop(), CONFETTI_DURATION_MS)
+  }, [fireBurst, stop])
 
   const dismissVideo = useCallback(() => {
     setShowVideo(false)
@@ -78,6 +97,7 @@ export function useConfetti() {
   useEffect(() => {
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current)
+      if (timeoutRef.current) clearTimeout(timeoutRef.current)
     }
   }, [])
 

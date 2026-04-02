@@ -102,6 +102,15 @@ export class StatusRoom extends Server<Env> {
 
       this.persistAndBroadcast(chatMessage)
 
+      // 🎉 in chat re-triggers confetti for everyone
+      if (text.includes('🎉')) {
+        const confetti: ServerMessage = {
+          type: 'confetti-trigger',
+          uptime: this.cachedStatusData?.uptimePercent ?? 0,
+        }
+        this.broadcast(JSON.stringify(confetti))
+      }
+
       // Check for @statusbot mention (behind ENABLE_AGENT flag)
       if (this.env.ENABLE_AGENT) {
         const statusbotMatch = text.match(/^@statusbot\s+/i)
