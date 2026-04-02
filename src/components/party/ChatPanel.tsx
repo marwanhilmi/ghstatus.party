@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Popover } from 'radix-ui'
-import { Bot, Smile } from 'lucide-react'
-import type { ChatMessage } from '@/party/protocol'
+import { Bot, Plus, Smile } from 'lucide-react'
+import type { ChatMessage, ReactionSummary } from '@/party/protocol'
 import { PresenceBadge } from './PresenceBadge'
 
 const EMOJI_LIST = [
@@ -68,17 +68,92 @@ function getSenderColor(name: string): string {
   return SENDER_COLORS[Math.abs(hash) % SENDER_COLORS.length]
 }
 
+const REACTION_EMOJIS = ['👍', '👎', '😂', '🔥', '❤️', '🚀', '👀', '🎉', '😤', '💯', '🙏', '⚠️']
+
+function MessageReactions({
+  messageId,
+  reactions,
+  myName,
+  onToggle,
+}: {
+  messageId: string
+  reactions?: ReactionSummary[]
+  myName: string
+  onToggle: (messageId: string, emoji: string) => void
+}) {
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const hasReactions = reactions && reactions.length > 0
+
+  return (
+    <div className="group/reactions flex flex-wrap items-center gap-1 mt-0.5">
+      {reactions?.map((r) => {
+        const isActive = r.names.includes(myName)
+        return (
+          <button
+            key={r.emoji}
+            type="button"
+            title={r.names.join(', ')}
+            onClick={() => onToggle(messageId, r.emoji)}
+            className={`inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-xs transition ${
+              isActive
+                ? 'border border-[var(--lagoon)] bg-[var(--lagoon)]/10 text-[var(--sea-ink)]'
+                : 'border border-[var(--line)] text-[var(--sea-ink-soft)] hover:border-[var(--sea-ink-soft)]'
+            }`}
+          >
+            <span>{r.emoji}</span>
+            <span>{r.names.length}</span>
+          </button>
+        )
+      })}
+      <Popover.Root open={pickerOpen} onOpenChange={setPickerOpen}>
+        <Popover.Trigger asChild>
+          <button
+            type="button"
+            className={`inline-flex h-5 w-5 items-center justify-center rounded-full border border-[var(--line)] text-[var(--sea-ink-soft)] transition hover:border-[var(--sea-ink-soft)] hover:text-[var(--sea-ink)] ${hasReactions ? '' : 'opacity-0 group-hover/msg:opacity-100'}`}
+          >
+            <Plus size={12} />
+          </button>
+        </Popover.Trigger>
+        <Popover.Portal>
+          <Popover.Content
+            side="top"
+            align="start"
+            sideOffset={4}
+            className="z-50 grid grid-cols-6 gap-0.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] p-1.5 shadow-lg"
+          >
+            {REACTION_EMOJIS.map((emoji) => (
+              <button
+                key={emoji}
+                type="button"
+                onClick={() => {
+                  onToggle(messageId, emoji)
+                  setPickerOpen(false)
+                }}
+                className="flex h-7 w-7 items-center justify-center rounded-md text-base transition hover:bg-[var(--surface-strong)]"
+              >
+                {emoji}
+              </button>
+            ))}
+          </Popover.Content>
+        </Popover.Portal>
+      </Popover.Root>
+    </div>
+  )
+}
+
 export function ChatPanel({
   messages,
   presence,
   myName,
   onSend,
+  onToggleReaction,
   agentThinking = false,
 }: {
   messages: ChatMessage[]
   presence: number
   myName: string
   onSend: (text: string) => void
+  onToggleReaction: (messageId: string, emoji: string) => void
   agentThinking?: boolean
 }) {
   const [input, setInput] = useState('')
@@ -126,17 +201,19 @@ export function ChatPanel({
         )}
         {messages.map((msg) =>
           msg.isAgent ? (
-            <div key={msg.id} className="my-1 rounded-lg bg-[var(--surface-strong)] px-3 py-2">
+            <div key={msg.id} className="group/msg my-1 rounded-lg bg-[var(--surface-strong)] px-3 py-2">
               <span className="inline-flex items-center gap-1 text-sm font-bold text-[#60a5fa]">
                 <Bot size={14} />
                 {msg.sender}
               </span>
               <span className="block text-sm text-[var(--sea-ink)]">{msg.text}</span>
+              <MessageReactions messageId={msg.id} reactions={msg.reactions} myName={myName} onToggle={onToggleReaction} />
             </div>
           ) : (
-            <div key={msg.id} className="py-1 [content-visibility:auto] [contain-intrinsic-size:0_28px]">
+            <div key={msg.id} className="group/msg py-1">
               <span className={`text-sm font-bold ${getSenderColor(msg.sender)}`}>{msg.sender}</span>
               <span className="text-sm text-[var(--sea-ink)]">: {msg.text}</span>
+              <MessageReactions messageId={msg.id} reactions={msg.reactions} myName={myName} onToggle={onToggleReaction} />
             </div>
           ),
         )}

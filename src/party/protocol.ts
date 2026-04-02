@@ -38,12 +38,18 @@ export type StatusData = {
   liveStatus: LiveStatus | null
 }
 
+export type ReactionSummary = {
+  emoji: string
+  names: string[]
+}
+
 export type ChatMessage = {
   id: string
   sender: string
   text: string
   timestamp: number
   isAgent?: boolean
+  reactions?: ReactionSummary[]
 }
 
 // Server -> Client
@@ -63,6 +69,7 @@ export type ServerMessage =
   | { type: 'agent-thinking' }
   | { type: 'message-deleted'; id: string }
   | { type: 'message-edited'; message: ChatMessage }
+  | { type: 'reaction-update'; messageId: string; reactions: ReactionSummary[] }
   | {
       type: 'betting-sync'
       markets: Market[]
@@ -104,6 +111,7 @@ export type LeaderboardEntry = {
 // Client -> Server
 export type ClientMessage =
   | { type: 'chat'; text: string }
+  | { type: 'toggle-reaction'; messageId: string; emoji: string }
   | { type: 'place-bet'; marketId: string; side: 'yes' | 'no'; amount: number }
   | { type: 'create-test-markets' }
   | { type: 'resolve-test-markets' }

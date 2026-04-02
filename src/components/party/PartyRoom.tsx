@@ -75,6 +75,13 @@ function roomReducer(state: RoomState, action: ServerMessage): RoomState {
       return { ...state, messages: state.messages.filter((m) => m.id !== action.id) }
     case 'message-edited':
       return { ...state, messages: state.messages.map((m) => (m.id === action.message.id ? action.message : m)) }
+    case 'reaction-update':
+      return {
+        ...state,
+        messages: state.messages.map((m) =>
+          m.id === action.messageId ? { ...m, reactions: action.reactions } : m,
+        ),
+      }
     case 'betting-sync':
       return {
         ...state,
@@ -105,6 +112,8 @@ function roomReducer(state: RoomState, action: ServerMessage): RoomState {
       }
     case 'bet-error':
       return state
+    default:
+      return state
   }
 }
 
@@ -127,6 +136,14 @@ export function PartyRoom() {
   const handleSend = useCallback(
     (text: string) => {
       const msg: ClientMessage = { type: 'chat', text }
+      socket.send(JSON.stringify(msg))
+    },
+    [socket],
+  )
+
+  const handleToggleReaction = useCallback(
+    (messageId: string, emoji: string) => {
+      const msg: ClientMessage = { type: 'toggle-reaction', messageId, emoji }
       socket.send(JSON.stringify(msg))
     },
     [socket],
@@ -276,6 +293,7 @@ export function PartyRoom() {
               presence={state.presence}
               myName={state.myName}
               onSend={handleSend}
+              onToggleReaction={handleToggleReaction}
               agentThinking={state.agentThinking}
             />
           </div>

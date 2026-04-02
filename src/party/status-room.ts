@@ -11,6 +11,7 @@ import type {
   Market,
   BetPosition,
   LeaderboardEntry,
+  ReactionSummary,
 } from './protocol'
 
 const CONFETTI_THRESHOLD = 89.99
@@ -20,6 +21,7 @@ const STARTING_BALANCE = 1000
 const MIN_BET = 10
 const SEED_POOL = 100 // phantom coins per side
 const MIN_OPEN_MARKETS = 3
+const REACTION_EMOJIS = new Set(['👍', '👎', '😂', '🔥', '❤️', '🚀', '👀', '🎉', '😤', '💯', '🙏', '⚠️'])
 
 type ConnectionState = {
   name: string
@@ -111,6 +113,14 @@ export class StatusRoom extends Server<Env> {
         created_at INTEGER NOT NULL
       )
     `)
+    this.ctx.storage.sql.exec(`
+      CREATE TABLE IF NOT EXISTS reactions (
+        message_id TEXT NOT NULL,
+        emoji TEXT NOT NULL,
+        name TEXT NOT NULL,
+        PRIMARY KEY (message_id, emoji, name)
+      )
+    `)
 
     // Load recent messages from storage
     const rows = this.ctx.storage.sql
@@ -123,6 +133,16 @@ export class StatusRoom extends Server<Env> {
       timestamp: row.timestamp as number,
       ...(row.sender === 'StatusBot' ? { isAgent: true } : {}),
     }))
+
+    // Attach reactions to recent messages
+    if (this.recentMessages.length > 0) {
+      const ids = this.recentMessages.map((m) => m.id)
+      const reactionsMap = this.getReactionsForMessages(ids)
+      for (const msg of this.recentMessages) {
+        const reactions = reactionsMap.get(msg.id)
+        if (reactions) msg.reactions = reactions
+      }
+    }
 
     // Load cached status data
     this.cachedStatusData = (await this.ctx.storage.get<StatusData>('statusData')) ?? null
@@ -208,6 +228,47 @@ export class StatusRoom extends Server<Env> {
       for (const conn of this.getConnections<ConnectionState>()) {
         this.sendBettingSync(conn)
       }
+      return
+    }
+
+    if (parsed.type === 'toggle-reaction') {
+      const { messageId, emoji } = parsed
+      if (!messageId || !REACTION_EMOJIS.has(emoji)) return
+
+      // Check message exists
+      const msgExists = this.ctx.storage.sql.exec(`SELECT 1 FROM messages WHERE id = ?`, messageId).toArray()
+      if (msgExists.length === 0) return
+
+      const name = connection.state?.name ?? 'Anonymous'
+
+      // Toggle: check if already exists
+      const existing = this.ctx.storage.sql
+        .exec(`SELECT 1 FROM reactions WHERE message_id = ? AND emoji = ? AND name = ?`, messageId, emoji, name)
+        .toArray()
+
+      if (existing.length > 0) {
+        this.ctx.storage.sql.exec(
+          `DELETE FROM reactions WHERE message_id = ? AND emoji = ? AND name = ?`,
+          messageId,
+          emoji,
+          name,
+        )
+      } else {
+        this.ctx.storage.sql.exec(
+          `INSERT INTO reactions (message_id, emoji, name) VALUES (?, ?, ?)`,
+          messageId,
+          emoji,
+          name,
+        )
+      }
+
+      // Get updated reactions and broadcast
+      const reactions = this.getReactionsForMessage(messageId)
+      const cached = this.recentMessages.find((m) => m.id === messageId)
+      if (cached) cached.reactions = reactions.length > 0 ? reactions : undefined
+
+      const update: ServerMessage = { type: 'reaction-update', messageId, reactions }
+      this.broadcast(JSON.stringify(update))
       return
     }
 
@@ -301,6 +362,7 @@ export class StatusRoom extends Server<Env> {
     this.ctx.storage.sql.exec(
       `DELETE FROM messages WHERE id NOT IN (SELECT id FROM messages ORDER BY timestamp DESC LIMIT ${MAX_RECENT_MESSAGES})`,
     )
+    this.ctx.storage.sql.exec(`DELETE FROM reactions WHERE message_id NOT IN (SELECT id FROM messages)`)
 
     // Update in-memory buffer
     this.recentMessages.push(chatMessage)
@@ -376,6 +438,7 @@ export class StatusRoom extends Server<Env> {
 
       if (request.method === 'DELETE') {
         this.ctx.storage.sql.exec(`DELETE FROM messages WHERE id = ?`, messageId)
+        this.ctx.storage.sql.exec(`DELETE FROM reactions WHERE message_id = ?`, messageId)
         this.recentMessages = this.recentMessages.filter((m) => m.id !== messageId)
         const msg: ServerMessage = { type: 'message-deleted', id: messageId }
         this.broadcast(JSON.stringify(msg))
@@ -778,6 +841,49 @@ export class StatusRoom extends Server<Env> {
       count++
     }
     return count
+  }
+
+  private getReactionsForMessages(messageIds: string[]): Map<string, ReactionSummary[]> {
+    const placeholders = messageIds.map(() => '?').join(',')
+    const rows = this.ctx.storage.sql
+      .exec(`SELECT message_id, emoji, name FROM reactions WHERE message_id IN (${placeholders})`, ...messageIds)
+      .toArray()
+
+    const map = new Map<string, Map<string, string[]>>()
+    for (const row of rows) {
+      const mid = row.message_id as string
+      const emoji = row.emoji as string
+      const name = row.name as string
+      if (!map.has(mid)) map.set(mid, new Map())
+      const emojiMap = map.get(mid)!
+      if (!emojiMap.has(emoji)) emojiMap.set(emoji, [])
+      emojiMap.get(emoji)!.push(name)
+    }
+
+    const result = new Map<string, ReactionSummary[]>()
+    for (const [mid, emojiMap] of map) {
+      result.set(
+        mid,
+        Array.from(emojiMap.entries()).map(([emoji, names]) => ({ emoji, names })),
+      )
+    }
+    return result
+  }
+
+  private getReactionsForMessage(messageId: string): ReactionSummary[] {
+    const rows = this.ctx.storage.sql
+      .exec(`SELECT emoji, name FROM reactions WHERE message_id = ?`, messageId)
+      .toArray()
+
+    const emojiMap = new Map<string, string[]>()
+    for (const row of rows) {
+      const emoji = row.emoji as string
+      const name = row.name as string
+      if (!emojiMap.has(emoji)) emojiMap.set(emoji, [])
+      emojiMap.get(emoji)!.push(name)
+    }
+
+    return Array.from(emojiMap.entries()).map(([emoji, names]) => ({ emoji, names }))
   }
 
   private broadcastPresence() {
