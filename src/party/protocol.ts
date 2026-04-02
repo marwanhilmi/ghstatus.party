@@ -40,6 +40,47 @@ export type ServerMessage =
   | { type: 'agent-thinking' }
   | { type: 'message-deleted'; id: string }
   | { type: 'message-edited'; message: ChatMessage }
+  | {
+      type: 'betting-sync'
+      markets: Market[]
+      balance: number
+      positions: BetPosition[]
+      leaderboard: LeaderboardEntry[]
+    }
+  | { type: 'market-update'; market: Market }
+  | { type: 'market-resolved'; market: Market; yourPayout: number | null }
+  | { type: 'balance-update'; balance: number }
+  | { type: 'bet-confirmed'; position: BetPosition; market: Market; balance: number }
+  | { type: 'bet-error'; message: string }
+
+// --- Betting types ---
+
+export type Market = {
+  id: string
+  question: string
+  kind: string
+  poolYes: number
+  poolNo: number
+  status: 'open' | 'resolved_yes' | 'resolved_no'
+  resolveAt: number
+  createdAt: number
+}
+
+export type BetPosition = {
+  marketId: string
+  side: 'yes' | 'no'
+  amount: number
+  payout: number | null
+}
+
+export type LeaderboardEntry = {
+  name: string
+  totalWon: number
+}
 
 // Client -> Server
-export type ClientMessage = { type: 'chat'; text: string }
+export type ClientMessage =
+  | { type: 'chat'; text: string }
+  | { type: 'place-bet'; marketId: string; side: 'yes' | 'no'; amount: number }
+  | { type: 'create-test-markets' }
+  | { type: 'resolve-test-markets' }
