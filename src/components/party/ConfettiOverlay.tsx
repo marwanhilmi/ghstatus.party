@@ -71,29 +71,32 @@ export function useConfetti() {
     }
   }, [])
 
-  const fire = useCallback(() => {
-    // Ignore if already running (e.g. PartySocket reconnect on tab focus)
-    if (activeRef.current) return
+  const fire = useCallback(
+    (force = false) => {
+      // Ignore if already running (e.g. PartySocket reconnect on tab focus)
+      if (activeRef.current) return
 
-    // Skip if the user has already seen this party
-    if (typeof window !== 'undefined' && localStorage.getItem('confetti-seen') === 'true') return
+      // Skip if the user has already seen this party (unless chat-triggered)
+      if (!force && typeof window !== 'undefined' && localStorage.getItem('confetti-seen') === 'true') return
 
-    // Clear any existing timers before starting fresh
-    if (intervalRef.current) clearInterval(intervalRef.current)
-    if (timeoutRef.current) clearTimeout(timeoutRef.current)
+      // Clear any existing timers before starting fresh
+      if (intervalRef.current) clearInterval(intervalRef.current)
+      if (timeoutRef.current) clearTimeout(timeoutRef.current)
 
-    activeRef.current = true
-    setActive(true)
-    setShowVideo(true)
+      activeRef.current = true
+      setActive(true)
+      setShowVideo(true)
 
-    if (typeof window !== 'undefined') localStorage.setItem('confetti-seen', 'true')
+      if (typeof window !== 'undefined') localStorage.setItem('confetti-seen', 'true')
 
-    void fireBurst()
-    intervalRef.current = setInterval(() => void fireBurst(), 2500)
+      void fireBurst()
+      intervalRef.current = setInterval(() => void fireBurst(), 2500)
 
-    // Auto-stop after ~1 minute
-    timeoutRef.current = setTimeout(() => stop(), CONFETTI_DURATION_MS)
-  }, [fireBurst, stop])
+      // Auto-stop after ~1 minute
+      timeoutRef.current = setTimeout(() => stop(), CONFETTI_DURATION_MS)
+    },
+    [fireBurst, stop],
+  )
 
   const dismissVideo = useCallback(() => {
     setShowVideo(false)

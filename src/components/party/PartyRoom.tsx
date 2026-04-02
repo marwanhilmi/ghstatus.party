@@ -1,6 +1,7 @@
 import { useCallback, useReducer } from 'react'
 import { usePartySocket } from 'partysocket/react'
 import type {
+  BetActivity,
   ChatMessage,
   ServerMessage,
   ClientMessage,
@@ -18,6 +19,8 @@ import { VersionIndicator } from './VersionIndicator'
 
 const MAX_CLIENT_MESSAGES = 200
 
+const MAX_CLIENT_ACTIVITY = 100
+
 type RoomState = {
   statusData: StatusData | null
   messages: ChatMessage[]
@@ -30,6 +33,7 @@ type RoomState = {
   balance: number
   positions: BetPosition[]
   leaderboard: LeaderboardEntry[]
+  betActivity: BetActivity[]
 }
 
 const initialState: RoomState = {
@@ -44,6 +48,7 @@ const initialState: RoomState = {
   balance: 1000,
   positions: [],
   leaderboard: [],
+  betActivity: [],
 }
 
 function roomReducer(state: RoomState, action: ServerMessage): RoomState {
@@ -78,9 +83,7 @@ function roomReducer(state: RoomState, action: ServerMessage): RoomState {
     case 'reaction-update':
       return {
         ...state,
-        messages: state.messages.map((m) =>
-          m.id === action.messageId ? { ...m, reactions: action.reactions } : m,
-        ),
+        messages: state.messages.map((m) => (m.id === action.messageId ? { ...m, reactions: action.reactions } : m)),
       }
     case 'betting-sync':
       return {
@@ -112,6 +115,13 @@ function roomReducer(state: RoomState, action: ServerMessage): RoomState {
       }
     case 'bet-error':
       return state
+    case 'bet-activity-sync':
+      return { ...state, betActivity: action.activities }
+    case 'bet-activity':
+      return {
+        ...state,
+        betActivity: [...state.betActivity, action.activity].slice(-MAX_CLIENT_ACTIVITY),
+      }
     default:
       return state
   }
@@ -129,7 +139,7 @@ export function PartyRoom() {
     onMessage(evt) {
       const msg = JSON.parse(evt.data as string) as ServerMessage
       dispatch(msg)
-      if (msg.type === 'confetti-trigger') fireConfetti()
+      if (msg.type === 'confetti-trigger') fireConfetti(msg.source === 'chat')
     },
   })
 
@@ -295,6 +305,8 @@ export function PartyRoom() {
               onSend={handleSend}
               onToggleReaction={handleToggleReaction}
               agentThinking={state.agentThinking}
+              betActivity={state.betActivity}
+              balance={state.balance}
             />
           </div>
         </div>

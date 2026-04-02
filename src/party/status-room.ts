@@ -4,6 +4,8 @@ import { nanoid } from 'nanoid'
 import { generateName } from './names'
 import { fetchAndComputeStatus } from './uptime-calculator'
 import type {
+  BetActivity,
+  ChatBetInfo,
   ChatMessage,
   ClientMessage,
   ServerMessage,
@@ -17,6 +19,7 @@ import type {
 const CONFETTI_THRESHOLD = 89.99
 const FETCH_INTERVAL_MS = 5 * 60 * 1000 // 5 minutes
 const MAX_RECENT_MESSAGES = 50
+const MAX_BET_ACTIVITY = 50
 const STARTING_BALANCE = 1000
 const MIN_BET = 10
 const SEED_POOL = 100 // phantom coins per side
@@ -65,6 +68,7 @@ export class StatusRoom extends Server<Env> {
 
   cachedStatusData: StatusData | null = null
   recentMessages: ChatMessage[] = []
+  recentBetActivity: BetActivity[] = []
 
   async onStart() {
     // Initialize tables
@@ -144,6 +148,9 @@ export class StatusRoom extends Server<Env> {
       }
     }
 
+    // Load recent bet activity from DB
+    this.loadBetActivity()
+
     // Load cached status data
     this.cachedStatusData = (await this.ctx.storage.get<StatusData>('statusData')) ?? null
 
@@ -188,6 +195,10 @@ export class StatusRoom extends Server<Env> {
     if (bettorId) {
       this.sendBettingSync(connection)
     }
+
+    // Send bet activity feed
+    const activitySync: ServerMessage = { type: 'bet-activity-sync', activities: this.recentBetActivity }
+    connection.send(JSON.stringify(activitySync))
 
     // Trigger confetti for newcomers if uptime is already below threshold
     if (this.cachedStatusData && this.cachedStatusData.uptimePercent <= CONFETTI_THRESHOLD) {
@@ -277,11 +288,13 @@ export class StatusRoom extends Server<Env> {
       if (!text || text.length > 500) return
 
       const state = connection.state
+      const activeBets = state?.bettorId ? this.getActiveBetsForBettor(state.bettorId) : []
       const chatMessage: ChatMessage = {
         id: nanoid(),
         sender: state?.name ?? 'Anonymous',
         text,
         timestamp: Date.now(),
+        ...(activeBets.length > 0 ? { activeBets } : {}),
       }
 
       this.persistAndBroadcast(chatMessage)
@@ -291,6 +304,7 @@ export class StatusRoom extends Server<Env> {
         const confetti: ServerMessage = {
           type: 'confetti-trigger',
           uptime: this.cachedStatusData?.uptimePercent ?? 0,
+          source: 'chat',
         }
         this.broadcast(JSON.stringify(confetti))
       }
@@ -545,6 +559,18 @@ export class StatusRoom extends Server<Env> {
     // Broadcast updated market to everyone
     const marketUpdate: ServerMessage = { type: 'market-update', market: updatedMarket }
     this.broadcast(JSON.stringify(marketUpdate))
+
+    // Broadcast bet activity
+    const activity: BetActivity = {
+      id: betId,
+      kind: 'bet-placed',
+      timestamp: Date.now(),
+      bettor: connection.state?.name ?? 'Anonymous',
+      question: updatedMarket.question,
+      side,
+      amount,
+    }
+    this.pushBetActivity(activity)
   }
 
   private sendBettingSync(connection: Connection<ConnectionState>) {
@@ -714,6 +740,18 @@ export class StatusRoom extends Server<Env> {
         timestamp: Date.now(),
         isAgent: true,
       })
+
+      // Broadcast bet activity for resolution
+      const resolveActivity: BetActivity = {
+        id: `resolve-${marketId}`,
+        kind: 'market-resolved',
+        timestamp: Date.now(),
+        question,
+        outcome,
+        winnerCount: winnerCount ?? 0,
+        totalPayout: totalPayout ?? 0,
+      }
+      this.pushBetActivity(resolveActivity)
     }
   }
 
@@ -762,6 +800,8 @@ export class StatusRoom extends Server<Env> {
       const market = this.readMarket(id)!
       const msg: ServerMessage = { type: 'market-update', market }
       this.broadcast(JSON.stringify(msg))
+
+      this.pushBetActivity({ id: `create-${id}`, kind: 'market-created', timestamp: now, question })
     }
   }
 
@@ -828,6 +868,8 @@ export class StatusRoom extends Server<Env> {
       const market = this.readMarket(id)!
       const msg: ServerMessage = { type: 'market-update', market }
       this.broadcast(JSON.stringify(msg))
+
+      this.pushBetActivity({ id: `create-${id}`, kind: 'market-created', timestamp: now, question: t.question })
     }
 
     // Resync the requester so they see updated balance/positions
@@ -887,11 +929,92 @@ export class StatusRoom extends Server<Env> {
     return Array.from(emojiMap.entries()).map(([emoji, names]) => ({ emoji, names }))
   }
 
+  private getActiveBetsForBettor(bettorId: string): ChatBetInfo[] {
+    const rows = this.ctx.storage.sql
+      .exec(
+        `SELECT m.question, b.side, SUM(b.amount) as amount
+         FROM bets b
+         JOIN markets m ON m.id = b.market_id
+         WHERE b.bettor_id = ? AND m.status = 'open'
+         GROUP BY b.market_id, b.side`,
+        bettorId,
+      )
+      .toArray()
+    return rows.map((r) => ({
+      question: r.question as string,
+      side: r.side as 'yes' | 'no',
+      amount: r.amount as number,
+    }))
+  }
+
   private broadcastPresence() {
     const msg: ServerMessage = {
       type: 'presence',
       count: this.getPresenceCount(),
     }
     this.broadcast(JSON.stringify(msg))
+  }
+
+  private pushBetActivity(activity: BetActivity) {
+    this.recentBetActivity.push(activity)
+    if (this.recentBetActivity.length > MAX_BET_ACTIVITY) {
+      this.recentBetActivity = this.recentBetActivity.slice(-MAX_BET_ACTIVITY)
+    }
+    const msg: ServerMessage = { type: 'bet-activity', activity }
+    this.broadcast(JSON.stringify(msg))
+  }
+
+  private loadBetActivity() {
+    const activities: BetActivity[] = []
+
+    // Load recent bet placements
+    const betRows = this.ctx.storage.sql
+      .exec(
+        `SELECT b.id, b.side, b.amount, b.created_at, m.question, bt.last_known_name
+         FROM bets b
+         JOIN markets m ON m.id = b.market_id
+         JOIN bettors bt ON bt.id = b.bettor_id
+         ORDER BY b.created_at DESC
+         LIMIT 30`,
+      )
+      .toArray()
+    for (const r of betRows) {
+      activities.push({
+        id: r.id as string,
+        kind: 'bet-placed',
+        timestamp: r.created_at as number,
+        bettor: r.last_known_name as string,
+        question: r.question as string,
+        side: r.side as 'yes' | 'no',
+        amount: r.amount as number,
+      })
+    }
+
+    // Load recent market resolutions
+    const resolvedRows = this.ctx.storage.sql
+      .exec(
+        `SELECT m.id, m.question, m.status, m.resolved_at,
+           (SELECT COUNT(DISTINCT b2.bettor_id) FROM bets b2 WHERE b2.market_id = m.id AND b2.payout > 0) as winner_count,
+           (SELECT COALESCE(SUM(b3.payout), 0) FROM bets b3 WHERE b3.market_id = m.id AND b3.payout IS NOT NULL AND b3.payout > 0) as total_payout
+         FROM markets m
+         WHERE m.status != 'open' AND m.resolved_at IS NOT NULL
+         ORDER BY m.resolved_at DESC
+         LIMIT 10`,
+      )
+      .toArray()
+    for (const r of resolvedRows) {
+      activities.push({
+        id: `resolve-${r.id as string}`,
+        kind: 'market-resolved',
+        timestamp: r.resolved_at as number,
+        question: r.question as string,
+        outcome: (r.status as string) === 'resolved_yes' ? 'yes' : 'no',
+        winnerCount: (r.winner_count as number) ?? 0,
+        totalPayout: (r.total_payout as number) ?? 0,
+      })
+    }
+
+    activities.sort((a, b) => a.timestamp - b.timestamp)
+    this.recentBetActivity = activities.slice(-MAX_BET_ACTIVITY)
   }
 }

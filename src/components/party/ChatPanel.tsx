@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Popover } from 'radix-ui'
-import { Bot, Plus, Smile } from 'lucide-react'
-import type { ChatMessage, ReactionSummary } from '@/party/protocol'
+import { Bot, Coins, Plus, Smile } from 'lucide-react'
+import type { BetActivity, ChatBetInfo, ChatMessage, ReactionSummary } from '@/party/protocol'
 import { PresenceBadge } from './PresenceBadge'
 
 const EMOJI_LIST = [
@@ -141,6 +141,110 @@ function MessageReactions({
   )
 }
 
+function BetIndicator({ bets }: { bets: ChatBetInfo[] }) {
+  const total = bets.reduce((sum, b) => sum + b.amount, 0)
+  return (
+    <span className="group/bet relative ml-1 inline-flex cursor-default">
+      <span className="inline-flex items-center gap-0.5 rounded-full bg-[#ffd700]/15 px-1.5 py-0 text-[10px] font-semibold text-[#ffd700]">
+        🪙{bets.length}
+      </span>
+      <span className="pointer-events-none absolute bottom-full left-0 z-50 mb-1.5 hidden w-52 rounded-lg border border-[var(--line)] bg-[rgb(30,10,60)] p-2 shadow-xl group-hover/bet:block">
+        <span className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-[#ffd700]">
+          Active Bets · {total} 🪙
+        </span>
+        {bets.map((b, i) => (
+          <span key={i} className="mt-1 flex items-start gap-1.5 text-[11px] leading-tight text-[var(--sea-ink-soft)]">
+            <span
+              className={`mt-0.5 shrink-0 rounded px-1 py-0 text-[9px] font-bold uppercase ${b.side === 'yes' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'}`}
+            >
+              {b.side}
+            </span>
+            <span className="min-w-0">
+              <span className="block truncate">{b.question}</span>
+              <span className="text-[10px] text-[var(--sea-ink-soft)]">{b.amount} coins</span>
+            </span>
+          </span>
+        ))}
+      </span>
+    </span>
+  )
+}
+
+function timeAgo(timestamp: number): string {
+  const seconds = Math.floor((Date.now() - timestamp) / 1000)
+  if (seconds < 60) return 'just now'
+  const minutes = Math.floor(seconds / 60)
+  if (minutes < 60) return `${minutes}m ago`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `${hours}h ago`
+  return `${Math.floor(hours / 24)}d ago`
+}
+
+function BetActivityItem({ activity }: { activity: BetActivity }) {
+  if (activity.kind === 'bet-placed') {
+    return (
+      <div className="flex items-start gap-2 py-2">
+        <span className="mt-0.5 text-sm">🪙</span>
+        <div className="min-w-0 flex-1 text-sm">
+          <div>
+            <span className={`font-bold ${getSenderColor(activity.bettor)}`}>{activity.bettor}</span>
+            <span className="text-[var(--sea-ink)]"> bet </span>
+            <span className="font-bold text-[#ffd700]">{activity.amount}</span>
+            <span className="text-[var(--sea-ink)]"> on </span>
+            <span className={`font-bold ${activity.side === 'yes' ? 'text-emerald-400' : 'text-rose-400'}`}>
+              {activity.side.toUpperCase()}
+            </span>
+          </div>
+          <span className="mt-0.5 block truncate text-xs text-[var(--sea-ink-soft)]">
+            &ldquo;{activity.question}&rdquo;
+          </span>
+          <span className="text-[10px] text-[var(--sea-ink-soft)]">{timeAgo(activity.timestamp)}</span>
+        </div>
+      </div>
+    )
+  }
+
+  if (activity.kind === 'market-resolved') {
+    return (
+      <div className="flex items-start gap-2 py-2">
+        <span className="mt-0.5 text-sm">{activity.outcome === 'yes' ? '✅' : '❌'}</span>
+        <div className="min-w-0 flex-1 text-sm">
+          <div>
+            <span className="font-bold text-[var(--sea-ink)]">Resolved: </span>
+            <span className={`font-bold ${activity.outcome === 'yes' ? 'text-emerald-400' : 'text-rose-400'}`}>
+              {activity.outcome.toUpperCase()} wins
+            </span>
+          </div>
+          <span className="mt-0.5 block truncate text-xs text-[var(--sea-ink-soft)]">
+            &ldquo;{activity.question}&rdquo;
+          </span>
+          {activity.winnerCount > 0 && activity.totalPayout > 0 && (
+            <span className="mt-0.5 block text-xs text-[#ffd700]">
+              {activity.winnerCount} bettor{activity.winnerCount !== 1 ? 's' : ''} split{' '}
+              {activity.totalPayout.toLocaleString()} GitCoins
+            </span>
+          )}
+          <span className="text-[10px] text-[var(--sea-ink-soft)]">{timeAgo(activity.timestamp)}</span>
+        </div>
+      </div>
+    )
+  }
+
+  // market-created
+  return (
+    <div className="flex items-start gap-2 py-2">
+      <span className="mt-0.5 text-sm">📊</span>
+      <div className="min-w-0 flex-1 text-sm">
+        <span className="font-bold text-[var(--sea-ink)]">New prediction market</span>
+        <span className="mt-0.5 block truncate text-xs text-[var(--sea-ink-soft)]">
+          &ldquo;{activity.question}&rdquo;
+        </span>
+        <span className="text-[10px] text-[var(--sea-ink-soft)]">{timeAgo(activity.timestamp)}</span>
+      </div>
+    </div>
+  )
+}
+
 export function ChatPanel({
   messages,
   presence,
@@ -148,6 +252,8 @@ export function ChatPanel({
   onSend,
   onToggleReaction,
   agentThinking = false,
+  betActivity = [],
+  balance = 0,
 }: {
   messages: ChatMessage[]
   presence: number
@@ -155,13 +261,19 @@ export function ChatPanel({
   onSend: (text: string) => void
   onToggleReaction: (messageId: string, emoji: string) => void
   agentThinking?: boolean
+  betActivity?: BetActivity[]
+  balance?: number
 }) {
   const [input, setInput] = useState('')
   const [emojiOpen, setEmojiOpen] = useState(false)
+  const [activeTab, setActiveTab] = useState<'chat' | 'bets'>('chat')
   const inputRef = useRef<HTMLInputElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
+  const activityEndRef = useRef<HTMLDivElement>(null)
+  const activityScrollRef = useRef<HTMLDivElement>(null)
   const shouldAutoScroll = useRef(true)
+  const shouldAutoScrollActivity = useRef(true)
 
   // Track if user has scrolled up
   const handleScroll = () => {
@@ -178,6 +290,19 @@ export function ChatPanel({
     }
   }, [messages.length])
 
+  // Auto-scroll activity on new items
+  const handleActivityScroll = () => {
+    const el = activityScrollRef.current
+    if (!el) return
+    shouldAutoScrollActivity.current = el.scrollHeight - el.scrollTop - el.clientHeight < 100
+  }
+
+  useEffect(() => {
+    if (shouldAutoScrollActivity.current) {
+      activityEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    }
+  }, [betActivity.length])
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     const text = input.trim()
@@ -188,99 +313,159 @@ export function ChatPanel({
 
   return (
     <div className="flex h-full flex-col overflow-hidden rounded-2xl border border-[var(--line)] bg-[var(--surface)]">
-      {/* Header */}
-      <div className="flex items-center justify-between border-b border-[var(--line)] px-4 py-3">
-        <h3 className="m-0 text-sm font-semibold text-[var(--sea-ink)]">Chat</h3>
-        <PresenceBadge count={presence} />
+      {/* Tab Header */}
+      <div className="flex items-center border-b border-[var(--line)]">
+        <button
+          type="button"
+          onClick={() => setActiveTab('chat')}
+          className={`px-4 py-3 text-sm font-semibold transition ${
+            activeTab === 'chat'
+              ? 'border-b-2 border-[var(--lagoon)] text-[var(--sea-ink)]'
+              : 'text-[var(--sea-ink-soft)] hover:text-[var(--sea-ink)]'
+          }`}
+        >
+          Chat
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('bets')}
+          className={`px-4 py-3 text-sm font-semibold transition ${
+            activeTab === 'bets'
+              ? 'border-b-2 border-[#ffd700] text-[var(--sea-ink)]'
+              : 'text-[var(--sea-ink-soft)] hover:text-[var(--sea-ink)]'
+          }`}
+        >
+          Bets
+        </button>
+        <div className="ml-auto pr-4">
+          <PresenceBadge count={presence} />
+        </div>
       </div>
 
-      {/* Messages */}
-      <div ref={scrollContainerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto px-4 py-2">
-        {messages.length === 0 && (
-          <p className="py-8 text-center text-xs text-[var(--sea-ink-soft)]">No messages yet. Say something!</p>
-        )}
-        {messages.map((msg) =>
-          msg.isAgent ? (
-            <div key={msg.id} className="group/msg my-1 rounded-lg bg-[var(--surface-strong)] px-3 py-2">
+      {/* Chat Messages */}
+      {activeTab === 'chat' && (
+        <div ref={scrollContainerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto px-4 py-2">
+          {messages.length === 0 && (
+            <p className="py-8 text-center text-xs text-[var(--sea-ink-soft)]">No messages yet. Say something!</p>
+          )}
+          {messages.map((msg) =>
+            msg.isAgent ? (
+              <div key={msg.id} className="group/msg my-1 rounded-lg bg-[var(--surface-strong)] px-3 py-2">
+                <span className="inline-flex items-center gap-1 text-sm font-bold text-[#60a5fa]">
+                  <Bot size={14} />
+                  {msg.sender}
+                </span>
+                <span className="block text-sm text-[var(--sea-ink)]">{msg.text}</span>
+                <MessageReactions
+                  messageId={msg.id}
+                  reactions={msg.reactions}
+                  myName={myName}
+                  onToggle={onToggleReaction}
+                />
+              </div>
+            ) : (
+              <div key={msg.id} className="group/msg py-1">
+                <span className={`text-sm font-bold ${getSenderColor(msg.sender)}`}>{msg.sender}</span>
+                {msg.activeBets && msg.activeBets.length > 0 && <BetIndicator bets={msg.activeBets} />}
+                <span className="text-sm text-[var(--sea-ink)]">: {msg.text}</span>
+                <MessageReactions
+                  messageId={msg.id}
+                  reactions={msg.reactions}
+                  myName={myName}
+                  onToggle={onToggleReaction}
+                />
+              </div>
+            ),
+          )}
+          {agentThinking && (
+            <div className="my-1 rounded-lg bg-[var(--surface-strong)] px-3 py-2">
               <span className="inline-flex items-center gap-1 text-sm font-bold text-[#60a5fa]">
                 <Bot size={14} />
-                {msg.sender}
+                StatusBot
               </span>
-              <span className="block text-sm text-[var(--sea-ink)]">{msg.text}</span>
-              <MessageReactions messageId={msg.id} reactions={msg.reactions} myName={myName} onToggle={onToggleReaction} />
+              <span className="block text-sm text-[var(--sea-ink-soft)] italic">thinking...</span>
             </div>
-          ) : (
-            <div key={msg.id} className="group/msg py-1">
-              <span className={`text-sm font-bold ${getSenderColor(msg.sender)}`}>{msg.sender}</span>
-              <span className="text-sm text-[var(--sea-ink)]">: {msg.text}</span>
-              <MessageReactions messageId={msg.id} reactions={msg.reactions} myName={myName} onToggle={onToggleReaction} />
-            </div>
-          ),
-        )}
-        {agentThinking && (
-          <div className="my-1 rounded-lg bg-[var(--surface-strong)] px-3 py-2">
-            <span className="inline-flex items-center gap-1 text-sm font-bold text-[#60a5fa]">
-              <Bot size={14} />
-              StatusBot
-            </span>
-            <span className="block text-sm text-[var(--sea-ink-soft)] italic">thinking...</span>
-          </div>
-        )}
-        <div ref={messagesEndRef} />
-      </div>
+          )}
+          <div ref={messagesEndRef} />
+        </div>
+      )}
 
-      {/* Input */}
-      <form onSubmit={handleSubmit} className="flex gap-2 border-t border-[var(--line)] p-3">
-        <input
-          ref={inputRef}
-          type="text"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder={`Chat as ${myName}...`}
-          maxLength={500}
-          className="min-w-0 flex-1 rounded-lg border border-[var(--line)] bg-[var(--surface-strong)] px-3 py-2 text-sm text-[var(--sea-ink)] placeholder:text-[var(--sea-ink-soft)] focus:border-[var(--lagoon)] focus:outline-none"
-        />
-        <Popover.Root open={emojiOpen} onOpenChange={setEmojiOpen}>
-          <Popover.Trigger asChild>
-            <button
-              type="button"
-              className="shrink-0 rounded-lg border border-[var(--line)] bg-[var(--surface-strong)] px-2.5 py-2 text-[var(--sea-ink-soft)] transition hover:text-[var(--sea-ink)]"
-            >
-              <Smile size={18} />
-            </button>
-          </Popover.Trigger>
-          <Popover.Portal>
-            <Popover.Content
-              side="top"
-              align="end"
-              sideOffset={8}
-              className="z-50 grid w-[280px] grid-cols-8 gap-0.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] p-2 shadow-lg"
-            >
-              {EMOJI_LIST.map((emoji) => (
-                <button
-                  key={emoji}
-                  type="button"
-                  onClick={() => {
-                    setInput((prev) => prev + emoji)
-                    setEmojiOpen(false)
-                    inputRef.current?.focus()
-                  }}
-                  className="flex h-8 w-8 items-center justify-center rounded-md text-lg transition hover:bg-[var(--surface-strong)]"
-                >
-                  {emoji}
-                </button>
-              ))}
-            </Popover.Content>
-          </Popover.Portal>
-        </Popover.Root>
-        <button
-          type="submit"
-          disabled={!input.trim()}
-          className="shrink-0 rounded-lg bg-[var(--lagoon)] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[var(--lagoon-deep)] disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          Send
-        </button>
-      </form>
+      {/* Bets Activity Feed */}
+      {activeTab === 'bets' && (
+        <div ref={activityScrollRef} onScroll={handleActivityScroll} className="flex-1 overflow-y-auto px-4 py-2">
+          {/* Balance chip */}
+          <div className="mb-2 flex items-center gap-2 rounded-lg bg-[var(--surface-strong)] px-3 py-2">
+            <Coins size={14} className="text-[#ffd700]" />
+            <span className="text-xs font-bold text-[#ffd700]">{balance.toLocaleString()} GitCoins</span>
+          </div>
+          {betActivity.length === 0 && (
+            <p className="py-8 text-center text-xs text-[var(--sea-ink-soft)]">
+              No betting activity yet. Place a bet to get started!
+            </p>
+          )}
+          <div className="divide-y divide-[var(--line)]">
+            {betActivity.map((a) => (
+              <BetActivityItem key={a.id} activity={a} />
+            ))}
+          </div>
+          <div ref={activityEndRef} />
+        </div>
+      )}
+
+      {/* Input — only on Chat tab */}
+      {activeTab === 'chat' && (
+        <form onSubmit={handleSubmit} className="flex gap-2 border-t border-[var(--line)] p-3">
+          <input
+            ref={inputRef}
+            type="text"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder={`Chat as ${myName}...`}
+            maxLength={500}
+            className="min-w-0 flex-1 rounded-lg border border-[var(--line)] bg-[var(--surface-strong)] px-3 py-2 text-sm text-[var(--sea-ink)] placeholder:text-[var(--sea-ink-soft)] focus:border-[var(--lagoon)] focus:outline-none"
+          />
+          <Popover.Root open={emojiOpen} onOpenChange={setEmojiOpen}>
+            <Popover.Trigger asChild>
+              <button
+                type="button"
+                className="shrink-0 rounded-lg border border-[var(--line)] bg-[var(--surface-strong)] px-2.5 py-2 text-[var(--sea-ink-soft)] transition hover:text-[var(--sea-ink)]"
+              >
+                <Smile size={18} />
+              </button>
+            </Popover.Trigger>
+            <Popover.Portal>
+              <Popover.Content
+                side="top"
+                align="end"
+                sideOffset={8}
+                className="z-50 grid w-[280px] grid-cols-8 gap-0.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] p-2 shadow-lg"
+              >
+                {EMOJI_LIST.map((emoji) => (
+                  <button
+                    key={emoji}
+                    type="button"
+                    onClick={() => {
+                      setInput((prev) => prev + emoji)
+                      setEmojiOpen(false)
+                      inputRef.current?.focus()
+                    }}
+                    className="flex h-8 w-8 items-center justify-center rounded-md text-lg transition hover:bg-[var(--surface-strong)]"
+                  >
+                    {emoji}
+                  </button>
+                ))}
+              </Popover.Content>
+            </Popover.Portal>
+          </Popover.Root>
+          <button
+            type="submit"
+            disabled={!input.trim()}
+            className="shrink-0 rounded-lg bg-[var(--lagoon)] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[var(--lagoon-deep)] disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            Send
+          </button>
+        </form>
+      )}
     </div>
   )
 }

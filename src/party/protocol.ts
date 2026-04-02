@@ -43,6 +43,12 @@ export type ReactionSummary = {
   names: string[]
 }
 
+export type ChatBetInfo = {
+  question: string
+  side: 'yes' | 'no'
+  amount: number
+}
+
 export type ChatMessage = {
   id: string
   sender: string
@@ -50,6 +56,7 @@ export type ChatMessage = {
   timestamp: number
   isAgent?: boolean
   reactions?: ReactionSummary[]
+  activeBets?: ChatBetInfo[]
 }
 
 // Server -> Client
@@ -65,7 +72,7 @@ export type ServerMessage =
   | { type: 'status-update'; data: StatusData }
   | { type: 'chat-message'; message: ChatMessage }
   | { type: 'presence'; count: number }
-  | { type: 'confetti-trigger'; uptime: number }
+  | { type: 'confetti-trigger'; uptime: number; source?: 'chat' | 'uptime' }
   | { type: 'agent-thinking' }
   | { type: 'message-deleted'; id: string }
   | { type: 'message-edited'; message: ChatMessage }
@@ -82,6 +89,8 @@ export type ServerMessage =
   | { type: 'balance-update'; balance: number }
   | { type: 'bet-confirmed'; position: BetPosition; market: Market; balance: number }
   | { type: 'bet-error'; message: string }
+  | { type: 'bet-activity'; activity: BetActivity }
+  | { type: 'bet-activity-sync'; activities: BetActivity[] }
 
 // --- Betting types ---
 
@@ -107,6 +116,27 @@ export type LeaderboardEntry = {
   name: string
   totalWon: number
 }
+
+export type BetActivity =
+  | {
+      id: string
+      kind: 'bet-placed'
+      timestamp: number
+      bettor: string
+      question: string
+      side: 'yes' | 'no'
+      amount: number
+    }
+  | {
+      id: string
+      kind: 'market-resolved'
+      timestamp: number
+      question: string
+      outcome: 'yes' | 'no'
+      winnerCount: number
+      totalPayout: number
+    }
+  | { id: string; kind: 'market-created'; timestamp: number; question: string }
 
 // Client -> Server
 export type ClientMessage =
