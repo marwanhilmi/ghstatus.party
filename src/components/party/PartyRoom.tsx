@@ -177,10 +177,10 @@ export function PartyRoom() {
   return (
     <>
       <ConfettiBanner active={confettiActive} uptime={state.confettiUptime} />
-      <div className="flex h-[100dvh] flex-col p-4">
+      <div className="flex min-h-[100dvh] flex-col p-4 lg:h-[100dvh] lg:min-h-0">
         <div className="flex min-h-0 flex-1 flex-col gap-4 lg:flex-row">
           {/* Left: Uptime Dashboard + Video */}
-          <div className="flex-[2] overflow-y-auto">
+          <div className="flex-none lg:flex-[2] lg:overflow-y-auto">
             <UptimeDashboard data={state.statusData} />
 
             {/* Prediction market */}
@@ -287,7 +287,7 @@ export function PartyRoom() {
           </div>
 
           {/* Right: Chat */}
-          <div className="min-h-[400px] flex-1 lg:min-h-0">
+          <div className="h-[70vh] flex-none lg:h-auto lg:flex-1">
             <ChatPanel
               messages={state.messages}
               presence={state.presence}
